@@ -158,17 +158,17 @@ void update_menu()
 
 		case VIEW_SET_PARAMS:
 
-			display_chars(0, LCD_SEG_L2_5_0 , "SETS", SEG_SET);
+			display_chars(0, LCD_SEG_L2_4_0 , "SETS", SEG_SET);
 			break;
 
 		case VIEW_STATUS:
 
-			display_chars(0,LCD_SEG_L2_5_0 , "STAT", SEG_SET);
+			display_chars(0,LCD_SEG_L2_4_0 , "STAT", SEG_SET);
 			break;
 
 		case VIEW_AXIS:
 
-			display_chars(0,LCD_SEG_L2_5_0 , "DATA", SEG_SET);
+			display_chars(0,LCD_SEG_L2_4_0 , "DATA", SEG_SET);
 			break;
 
 		default:
@@ -347,7 +347,7 @@ static void as_event(enum sys_message msg)
 	if ( (msg & SYS_MSG_RTC_SECOND) == SYS_MSG_RTC_SECOND)
 	{
 	/*check the status register for debugging purposes */
-	_printf(0, LCD_SEG_L1_1_0, "%1u", as_read_register(ADDR_INT_STATUS));	
+	//_printf(0, LCD_SEG_L1_1_0, "%1u", as_read_register(ADDR_INT_STATUS));	
 	/* update menu screen */
 	lcd_screen_activate(0);
 	}
