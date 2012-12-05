@@ -45,22 +45,21 @@
 
 /* Defines */
 
-#define SWATCH_MODE_OFF			(0u)
-#define SWATCH_MODE_ON			(1u)
-#define SWATCH_MODE_BACKGROUND	(2u)
+enum swatch_modes {
+  SWATCH_MODE_OFF,
+  SWATCH_MODE_ON,
+  SWATCH_MODE_BACKGROUND
+};
+
 #define MAX_LAPS	10
 
 /*
  * A structure to save diferent times
  */
 struct swatch_time {
-	// ACC_MODE_OFF, ACC_MODE_ON, ACCEL_MODE_BACKGROUND
 	uint8_t hours;
-	// Sensor raw data
 	uint8_t minutes;
-	// Sensor raw data
 	uint8_t seconds;
-
 	uint8_t cents;
 };
 
@@ -134,25 +133,32 @@ void drawStopWatchScreen(void) {
 
 /* Function called every 5ms to increment the counters */
 static void stopwatch_event() {
-
 	if (sSwatch_conf.state != SWATCH_MODE_OFF) {
 		sSwatch_time[SW_COUNTING].cents += 5;
+
 		if (sSwatch_time[SW_COUNTING].cents >= 100) {
 			sSwatch_time[SW_COUNTING].cents = 0;
 			sSwatch_time[SW_COUNTING].seconds++;
-			if (sSwatch_time[SW_COUNTING].seconds >= 60) {
-				sSwatch_time[SW_COUNTING].seconds = 0;
-				sSwatch_time[SW_COUNTING].minutes++;
-				if (sSwatch_time[SW_COUNTING].minutes >= 60) {
-					sSwatch_time[SW_COUNTING].minutes = 0;
-					sSwatch_time[SW_COUNTING].hours++;
-					if (sSwatch_time[SW_COUNTING].hours >= 20) {
-						sSwatch_time[SW_COUNTING].hours = 0;
-					}
-				}
-			}
+    }
+
+    if (sSwatch_time[SW_COUNTING].seconds >= 60) {
+      sSwatch_time[SW_COUNTING].seconds = 0;
+      sSwatch_time[SW_COUNTING].minutes++;
+    }
+
+    if (sSwatch_time[SW_COUNTING].minutes >= 60) {
+      sSwatch_time[SW_COUNTING].minutes = 0;
+      sSwatch_time[SW_COUNTING].hours++;
+    }
+
+    if (sSwatch_time[SW_COUNTING].hours >= 20) {
+      sSwatch_time[SW_COUNTING].hours = 0;
 		}
-		drawStopWatchScreen();
+
+    // the lcd can't refresh at 20Hz, 10Hz will do
+    if (sSwatch_time[SW_COUNTING].cents % 20 == 0) {
+      drawStopWatchScreen();
+    }
 	}
 }
 
