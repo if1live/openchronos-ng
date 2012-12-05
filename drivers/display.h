@@ -133,9 +133,9 @@ enum display_segment_array {
 	/* Line2 7-segment arrays */
 	LCD_SEG_L2_5_4			=	0x52, /*!< line2, segments 5-4 */
 	LCD_SEG_L2_5_3			=	0x53, /*!< line2, segments 5-3 */
-	LCD_SEG_L2_5_2			=	0x54, /*!< line2, segments 3-2 */
-	LCD_SEG_L2_5_1			=	0x55, /*!< line2, segments 3-1 */
-	LCD_SEG_L2_5_0			=	0x56, /*!< line2, segments 1-0 */
+	LCD_SEG_L2_5_2			=	0x54, /*!< line2, segments 5-2 */
+	LCD_SEG_L2_5_1			=	0x55, /*!< line2, segments 5-1 */
+	LCD_SEG_L2_5_0			=	0x56, /*!< line2, segments 5-0 */
 	LCD_SEG_L2_4_3			=	0x42, /*!< line2, segments 4-3 */
 	LCD_SEG_L2_4_2			=	0x43, /*!< line2, segments 4-2 */
 	LCD_SEG_L2_4_1			=	0x44, /*!< line2, segments 4-1 */
