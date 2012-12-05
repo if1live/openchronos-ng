@@ -268,27 +268,7 @@ static void menumode_handler(void)
     }
 
 		display_clear(0, 2);
-
-    // fixes display corruption when menu name is not exactly 5 chars.
-    const char *itemname = menumode.item->name;
-    uint8_t l = strlen(itemname);
-    uint8_t segments[] = {
-      0,              // len = 0
-      0,              // len = 1
-      LCD_SEG_L2_1_0, // len = 2
-      LCD_SEG_L2_2_0, // len = 3
-      LCD_SEG_L2_3_0, // len = 4
-      LCD_SEG_L2_4_0, // len = 5
-    };
-
-    if (l < 1 || l > 5 ) {
-      display_chars(0, LCD_SEG_L2_2_0, "ERR", SEG_SET);
-    } else if (l == 1) {
-      display_char(0, LCD_SEG_L2_0,itemname[0], SEG_SET);
-    } else {
-      display_chars(0, segments[l], itemname, SEG_SET);
-    }
-
+		display_chars2(0, 2, menumode.item->name, ALIGN_RIGHT, SEG_SET);
 	}
 
 }
