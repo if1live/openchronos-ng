@@ -676,6 +676,59 @@ void display_char(uint8_t scr_nr, enum display_segment segment,
      display_bits(scr_nr, segment, bits, state);
 }
 
+void display_chars2(uint8_t scr_nr,
+                    uint8_t line,
+                    char const * str,
+                    enum string_alignment alignment,
+                    enum display_segstate state) 
+{
+  // start is the enum value of the left most segment
+  uint8_t l1start = LCD_SEG_L1_3;
+  uint8_t l1len = 4;
+  // the 6th segment is a partial segment, so we won't use it 
+  uint8_t l2start = LCD_SEG_L2_4;
+  uint8_t l2len = 5;
+
+  // implicit assumption: line is < 255 characters
+  uint8_t len = strlen(str);
+  
+  uint8_t lcdlen = 0;
+  uint8_t startseg = 0;
+
+  if (line == 1) {
+    lcdlen = l1len;
+    startseg = l1start;
+  } else if (line == 2) {
+    lcdlen = l2len;
+    startseg = l2start;
+  }
+
+  // if string length is greater than lcd length, then just throw
+  // away additional characters
+  if (len > lcdlen) len = lcdlen;
+
+  // by default we are left aligned, so work out what offset, if any, we 
+  // need to apply to make things center or right aligned
+  uint8_t lendiff = lcdlen - len;
+  if (alignment == ALIGN_RIGHT) {
+    // simply shift the origin to the right
+    startseg += lendiff;
+  } else if (alignment == ALIGN_CENTER) {
+    // note that doing it this way favours the left side due to integer
+    // truncation
+    startseg += lendiff/2;
+  }
+
+  // XXX I would much rather we clear the line each time, but 
+  // display_chars doesn't do that, so we don't do it either.
+  //display_clear(scr_nr, line);
+
+  uint8_t idx = 0;
+  for (; idx < len; ++idx) {
+    display_char(scr_nr, startseg + idx, str[idx], state);
+  }
+}
+
 void display_chars(uint8_t scr_nr,
                    enum display_segment_array segments,
                    char const * str,
