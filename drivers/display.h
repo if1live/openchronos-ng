@@ -105,7 +105,7 @@ enum display_segment {
 	LCD_SEG_L1_DP0			=	32, /*!< ?? */
 	
 	/* Line2 7-segments */
-	LCD_SEG_L2_5			=	33, /*!< line2, 6th segment */
+	LCD_SEG_L2_5			=	33, /*!< line2, 6th segment. This segment can only display 1 */
 	LCD_SEG_L2_4			=	34, /*!< line2, 5th segment */
 	LCD_SEG_L2_3			=	35, /*!< line2, 4th segment */
 	LCD_SEG_L2_2			=	36, /*!< line2, 3rd segment */
@@ -146,6 +146,17 @@ enum display_segment_array {
 	LCD_SEG_L2_2_1			=	0x22, /*!< line2, segments 2-1 */
 	LCD_SEG_L2_2_0			=	0x23, /*!< line2, segments 2-0 */
 	LCD_SEG_L2_1_0			=	0x12, /*!< line2, segments 1-0 */
+};
+
+/*!
+	\brief Enumeration of LCD alignment
+	\details Align left/center/right determines how display_chars2 assigns segments to the passed string.
+	\sa #display_chars2()
+*/
+enum string_alignment {
+  ALIGN_LEFT,
+  ALIGN_CENTER,
+  ALIGN_RIGHT
 };
 
 /*!
@@ -288,6 +299,19 @@ void display_chars(
 	char const * str, /*!< A pointer to a vector of chars to be displayed */
 	enum display_segstate state /*!< A bitfield with state operations to be performed on the segment */
 );
+
+/*!
+	\brief Displays several consecutive characters
+	\details Smiliar to #display_chars() except it removes the hassel of keeping the string and segments enum in sync
+	\note If the given string is too long, it will be truncated to fit
+*/
+void display_chars2(
+  uint8_t scr_nr, /*!< the virtual screen number where to display */
+  uint8_t line, /*!< the LCD line to display on */
+  char const * str, /*!< A pointer to a vector of chars to be displayed */
+  enum string_alignment alignment, /*!< how the text should be aligned */
+  enum display_segstate state  /*!< A bitfield with state operations to be performed on the segment */
+); 
 
 /*!
 	\brief Displays a symbol
