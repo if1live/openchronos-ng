@@ -57,7 +57,7 @@
 
 // *************************************************************************************************
 // Include section
-
+#include <string.h>
 #include <openchronos.h>
 
 #include "modinit.h"
@@ -260,14 +260,37 @@ static void menumode_handler(void)
 		if (menumode.item->activate_fn)
 			menumode.item->activate_fn();
 
-	} else if (BIT_IS_SET(ports_pressed_btns, PORTS_BTN_UP)) {
-		menumode.item = menumode.item->next;
-		display_chars(0, LCD_SEG_L2_4_0, menumode.item->name, SEG_SET);
+	} else {
+	  if (BIT_IS_SET(ports_pressed_btns, PORTS_BTN_UP)) {
+		  menumode.item = menumode.item->next;
+	  } else if (BIT_IS_SET(ports_pressed_btns, PORTS_BTN_DOWN)) {
+		  menumode.item = menumode.item->prev;
+    }
 
-	} else if (BIT_IS_SET(ports_pressed_btns, PORTS_BTN_DOWN)) {
-		menumode.item = menumode.item->prev;
-		display_chars(0, LCD_SEG_L2_4_0, menumode.item->name, SEG_SET);
+		display_clear(0, 2);
+
+    // fixes display corruption when menu name is not exactly 5 chars.
+    const char *itemname = menumode.item->name;
+    uint8_t l = strlen(itemname);
+    uint8_t segments[] = {
+      0,              // len = 0
+      0,              // len = 1
+      LCD_SEG_L2_1_0, // len = 2
+      LCD_SEG_L2_2_0, // len = 3
+      LCD_SEG_L2_3_0, // len = 4
+      LCD_SEG_L2_4_0, // len = 5
+    };
+
+    if (l < 1 || l > 5 ) {
+      display_chars(0, LCD_SEG_L2_2_0, "ERR", SEG_SET);
+    } else if (l == 1) {
+      display_char(0, LCD_SEG_L2_0,itemname[0], SEG_SET);
+    } else {
+      display_chars(0, segments[l], itemname, SEG_SET);
+    }
+
 	}
+
 }
 
 static void menumode_enable(void)
