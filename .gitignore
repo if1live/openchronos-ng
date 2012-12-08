@@ -10,6 +10,7 @@ openchronos.cflags
 *.*~
 *.s
 *.swp
+*.o
 config.h
 .pida-metadata
 TAGS
