@@ -146,28 +146,25 @@ void update_menu()
 	switch (submenu_state) {
 		case VIEW_SET_MODE:
 
-			if(as_config.mode==FALL_MODE)
+			if(as_config.mode==AS_FALL_MODE)
 				display_chars(0, LCD_SEG_L1_3_0 , "FALL", SEG_SET);
-			else if(as_config.mode==MEASUREMENT_MODE)
+			else if(as_config.mode==AS_MEASUREMENT_MODE)
 				display_chars(0, LCD_SEG_L1_3_0 , "MEAS", SEG_SET);
-			else if(as_config.mode==ACTIVITY_MODE)
+			else if(as_config.mode==AS_ACTIVITY_MODE)
 				display_chars(0, LCD_SEG_L1_3_0 , "ACTI", SEG_SET);
 			
 			display_chars(0, LCD_SEG_L2_4_0 , "MODE", SEG_SET);
 			break;
 
 		case VIEW_SET_PARAMS:
-
 			display_chars(0, LCD_SEG_L2_4_0 , "SETS", SEG_SET);
 			break;
 
 		case VIEW_STATUS:
-
 			display_chars(0,LCD_SEG_L2_4_0 , "STAT", SEG_SET);
 			break;
 
 		case VIEW_AXIS:
-
 			display_chars(0,LCD_SEG_L2_4_0 , "DATA", SEG_SET);
 			break;
 
@@ -386,7 +383,7 @@ static void acc_activated()
 			// 100 Hz sampling rate
 			as_config.sampling=SAMPLING_10_HZ;
 			// keep mode
-			as_config.mode=ACTIVITY_MODE;
+			as_config.mode=AS_ACTIVITY_MODE;
 			//time window is 10 msec for free fall and 100 msec for activity
 			//2g multiple 71 mg: 0F=4 * 71 mg= 1.065 g
 			as_config.MDTHR=2;
@@ -405,7 +402,7 @@ static void acc_activated()
 			sAccel.view_style=DISPLAY_ACCEL_Z;
 
 			// Start sensor in motion detection mode
-			as_start(ACTIVITY_MODE);
+			as_start(AS_ACTIVITY_MODE);
 			// After this call interrupts will be generated
 		}
 

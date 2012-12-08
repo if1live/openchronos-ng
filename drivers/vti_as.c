@@ -166,17 +166,17 @@ void as_init(void)
 /******************************************************************************/
 /* @fn          change_mode */
 /* @brief       This is only called for a "warm" (as_start was already called) mode change */
-/* @param       mode can be [FALL_MODE, MEASUREMENT_MODE,ACTIVITY_MODE] */
+/* @param       mode can be [AS_FALL_MODE, AS_MEASUREMENT_MODE, AS_ACTIVITY_MODE] */
 /* @return      none */
 /******************************************************************************/
 
-void change_mode(uint8_t mode)
+void change_mode(enum AC_DETECTION_MODE mode)
 {
 	uint8_t bConfig = 0x00;
 
 /* Configure sensor and start to sample data */
 	switch (mode) {
-	case FALL_MODE:
+	case AS_FALL_MODE:
 		if (as_config.range == 2) {
 			bConfig = 0x80;
 
@@ -200,7 +200,7 @@ void change_mode(uint8_t mode)
 
 		break;
 
-	case MEASUREMENT_MODE:
+	case AS_MEASUREMENT_MODE:
 
 		/* Configure sensor and start to sample data */
 		if (as_config.range == 2) {
@@ -223,7 +223,7 @@ void change_mode(uint8_t mode)
 
 		break;
 
-	case ACTIVITY_MODE:
+	case AS_ACTIVITY_MODE:
 
 		/* Configure sensor and start to sample data */
 		if (as_config.range == 2) {

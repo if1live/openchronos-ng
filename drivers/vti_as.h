@@ -151,9 +151,9 @@ extern void write_FFTHR(uint8_t mgrav);
 /* Set system flags */
 typedef union {
 	struct {
-		uint8_t motiondet	: 2;    /* MDET see AS_MOTION_STATUS */
+		uint8_t motiondet	  : 2;    /* MDET see AS_MOTION_STATUS */
 		uint8_t falldet    	: 1;    /* FFDET see AS_FALL_STATUS */
-		uint8_t reserved        : 5;    /* reserved, initial value = 0h */
+		uint8_t reserved    : 5;    /* reserved, initial value = 0h */
 	} int_status;
 	/* Shortcut to all display flags (for reset) */
 	uint8_t all_flags;
@@ -171,29 +171,30 @@ struct As_Param {
 	uint8_t	FFTHR;
 	uint8_t	sampling;
 	uint8_t	range;
-	uint8_t	mode;
+	uint8_t mode;
 };
 extern struct As_Param as_config;
 
 
 enum AS_MOTION_STATUS {
-	AS_NO_MOTION = 00,	/* motion not detected */
-	AS_TRIGGER_X = 01,	/* motion trigger on x */
-	AS_TRIGGER_Y = 10,	/* motion trigger on y */
-	AS_TRIGGER_Z = 11	/* motion trigger on z */
+	AS_NO_MOTION,	/* motion not detected */
+	AS_TRIGGER_X,	/* motion trigger on x */
+	AS_TRIGGER_Y,	/* motion trigger on y */
+	AS_TRIGGER_Z /* motion trigger on z */
 };
 extern enum AS_MOTION_STATUS as_motion_bits;
 
 enum AS_FALL_STATUS {
-	AS_NOFALL = 0,    /* free fall not detected */
-	AS_FALL           /* free fall detected */
+	AS_NOFALL,    /* free fall not detected */
+	AS_FALL       /* free fall detected */
 };
 extern enum AS_FALL_STATUS as_fall_bit;
 
-
-#define FALL_MODE 0
-#define MEASUREMENT_MODE 1
-#define ACTIVITY_MODE 2
+enum AC_DETECTION_MODE {
+  AS_FALL_MODE,
+  AS_MEASUREMENT_MODE,
+  AS_ACTIVITY_MODE
+};
 
 /*  when activity mode is configured you can set this flag
     set 1 to remain in the motion detection mode
