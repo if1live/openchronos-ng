@@ -156,7 +156,7 @@ static void stopwatch_event() {
 		}
 
     // the lcd can't refresh at 20Hz, 10Hz will do
-    if (sSwatch_time[SW_COUNTING].cents % 20 == 0) {
+    if (sSwatch_time[SW_COUNTING].cents % 10 == 0) {
       drawStopWatchScreen();
     }
 	}
