@@ -28,13 +28,17 @@
 
 #define BIT(x) (1uL << (x))
 
-#define ACCEL_MODE_OFF		(0u)
-#define ACCEL_MODE_ON		(1u)
-#define ACCEL_MODE_BACKGROUND	(2u)
+enum ACCEL_MODE {
+  ACCEL_MODE_OFF,
+  ACCEL_MODE_ON,
+  ACCEL_MODE_BACKGROUND
+};
 
-#define DISPLAY_ACCEL_X		(0u)
-#define DISPLAY_ACCEL_Y		(1u)
-#define DISPLAY_ACCEL_Z		(2u)
+enum DISPLAY_AXIS {
+  DISPLAY_AXIS_X,
+  DISPLAY_AXIS_Y,
+  DISPLAY_AXIS_Z
+};
 
 // Stop acceleration measurement after 60 minutes to save battery
 // This parameter is ignored if in background mode!
@@ -52,24 +56,22 @@ static note smb[] = {0x2588, 0x000F};
 // Global Variable section
 struct accel
 {
-	// ACC_MODE_OFF, ACC_MODE_ON, ACCEL_MODE_BACKGROUND
-	uint8_t			mode;
+	enum ACCEL_MODE	mode;
 
 	// Sensor raw data
-	uint8_t			xyz[3];
-
-
+	uint8_t	xyz[3];
 
 	// Acceleration data in 10 * mgrav
-	uint16_t		data;
+	uint16_t data;
 
 	// Sensor old data for FIR filter
-	uint16_t		data_prev;
+	uint16_t data_prev;
 
 	// Timeout: should be decreased with the 1 minute RTC event
-	uint16_t			timeout;
-	// Display X/Y/Z values	
-	uint8_t 			view_style;
+	uint16_t timeout;
+
+	// Determines which acceleration axis is displayed
+	enum DISPLAY_AXIS display_axis;
 };
 extern struct accel sAccel;
 
@@ -88,6 +90,9 @@ struct accel sAccel;
 
 // Global flag for proper acceleration sensor operation
 extern uint8_t as_ok;
+
+// Prototypes
+void display_data(uint8_t display_id);
 
 // *************************************************************************************************
 // @fn          is_acceleration_measurement
@@ -189,7 +194,6 @@ static void num_pressed()
 
 static void up_btn()
 {
-
 	// Depending on the state what do we do?
 	switch (submenu_state) {
 		case VIEW_SET_MODE:
@@ -197,7 +201,6 @@ static void up_btn()
 			as_config.mode %= 3;
 			change_mode(as_config.mode);
 			update_menu();
-
 			break;
 
 		case VIEW_SET_PARAMS:
@@ -206,12 +209,14 @@ static void up_btn()
 
 		case VIEW_STATUS:
 			_printf(0,LCD_SEG_L1_3_0, "%1u", as_status.all_flags);
-	
 			break;
 
 		case VIEW_AXIS:
-
-			display_chars(0,LCD_SEG_L1_3_0 , "TODO", SEG_SET);
+			//display_chars(0,LCD_SEG_L1_3_0 , "TODO", SEG_SET);
+			if (as_config.mode == AS_MEASUREMENT_MODE) {
+        display_clear(0,0);
+        display_data(0);
+      }
 			break;
 
 		default:
@@ -255,17 +260,17 @@ void display_data(uint8_t display_id)
 	uint16_t accel_data=0;
 
 	// Convert X/Y/Z values to mg
-	switch (sAccel.view_style)
+	switch (sAccel.display_axis)
 	{
-		case DISPLAY_ACCEL_X: 	
+		case DISPLAY_AXIS_X: 	
 			raw_data = sAccel.xyz[0];
 			display_char(display_id,LCD_SEG_L1_3, 'X', SEG_ON);
 			break;
-		case DISPLAY_ACCEL_Y: 	
+		case DISPLAY_AXIS_Y: 	
 			raw_data = sAccel.xyz[1];
 			display_char(display_id,LCD_SEG_L1_3, 'Y', SEG_ON);
 			break;
-		case DISPLAY_ACCEL_Z: 	
+		case DISPLAY_AXIS_Z: 	
 			raw_data = sAccel.xyz[2];
 			display_char(display_id,LCD_SEG_L1_3, 'Z', SEG_ON);
 			break;
@@ -293,10 +298,10 @@ void display_data(uint8_t display_id)
 		display_symbol(display_id,LCD_SYMB_ARROW_DOWN, SEG_ON);
 	}
 }
+
 static void as_event(enum sys_message msg)
 {
-
-
+  buzzer_play(smb);
 	if ( (msg & SYS_MSG_RTC_MINUTE) == SYS_MSG_RTC_MINUTE)
 	{
 		if(sAccel.mode == ACCEL_MODE_ON) sAccel.timeout--;
@@ -334,10 +339,11 @@ static void as_event(enum sys_message msg)
 		{
 
 			//display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_OFF);
+			as_get_data(sAccel.xyz);
 			display_data(1);
 			/* refresh to accelerometer screen only if in that modality */
-			if (submenu_state== VIEW_AXIS )lcd_screen_activate(1);
-
+			if (submenu_state == VIEW_AXIS ) lcd_screen_activate(1);
+      buzzer_play(smb);
 		}
 	}
 	/* The 1 Hz timer is used to refresh the menu screen */
@@ -348,47 +354,34 @@ static void as_event(enum sys_message msg)
 	/* update menu screen */
 	lcd_screen_activate(0);
 	}
-
 }
 
 /* Enter the accelerometer menu */
 static void acc_activated()
 {
-
-
 	//register to the system bus for vti events as well as the RTC minute events
-	sys_messagebus_register(&as_event, SYS_MSG_AS_INT | SYS_MSG_RTC_MINUTE | SYS_MSG_RTC_SECOND);
+	sys_messagebus_register(
+	    &as_event, 
+	    SYS_MSG_AS_INT | SYS_MSG_RTC_MINUTE | SYS_MSG_RTC_SECOND
+	);
 
 
-	/* create two screens, the first is always the active one */
+	/* Create two screens, the first is always the active one. Screen 0 
+	 * will contain the menu structure and screen 1 the raw accelerometer 
+	 * data 
+	 * */
 	lcd_screens_create(2);
 
-	/* screen 0 will contain the menu structure and screen 1 the raw accelerometer data */
 	
 	// Show warning if acceleration sensor was not initialised properly
-	if (!as_ok)
-	{
-		display_chars(0, LCD_SEG_L1_3_0, "ERR", SEG_SET);
-	}
-	else
-	{
-
+	if (!as_ok) display_chars(0, LCD_SEG_L1_3_0, "ERR", SEG_SET);
+	else {
 		/* Initialization is required only if not in background mode! */
 		if (sAccel.mode != ACCEL_MODE_BACKGROUND)
 		{
 			// Clear previous acceleration value
 			sAccel.data = 0;
-			// 2 g range
-			as_config.range=2;
-			// 100 Hz sampling rate
-			as_config.sampling=SAMPLING_10_HZ;
-			// keep mode
-			as_config.mode=AS_ACTIVITY_MODE;
-			//time window is 10 msec for free fall and 100 msec for activity
-			//2g multiple 71 mg: 0F=4 * 71 mg= 1.065 g
-			as_config.MDTHR=2;
-			as_config.MDFFTMR=1;
-
+			//
 			// Set timeout counter
 			sAccel.timeout = ACCEL_MEASUREMENT_TIMEOUT;
 
@@ -399,21 +392,50 @@ static void acc_activated()
 			submenu_state=VIEW_SET_MODE;
 
 			// Select Axis X
-			sAccel.view_style=DISPLAY_ACCEL_Z;
+			sAccel.display_axis=DISPLAY_AXIS_X;
+
+			// 2 g range
+			as_config.range=2;
+			// 100 Hz sampling rate
+			as_config.sampling=SAMPLING_100_HZ;
+
+			/* 
+			 * In motion detection mode the G range is also 8 g, and lets set
+			 * this to something about 2 g for convenience's sake
+			 */ 
+			as_config.MDTHR=0x20;
+
+			/*
+			 * In both motion detect and free fall mode, the g value on either
+			 * the x,y,z axis must exceed +/-MDTHR (in MD mode), and fall
+			 * below +/- FFTHR (in FF mode), for an amount of time determined
+			 * by MDFFTMR before an interrupt is raised. This acts as a basic
+			 * filter to get rid of jitters.
+			 *
+			 * The lower 4 bits sets the detection time threshold for free fall;
+			 * The upper 4 bits sets the detection time threshold for motion
+			 * detection.
+			 *
+			 * The LSB of each nibble is equal to 1/sampling rage. Therefore
+			 * if sampling rate is 100Hz, then 0x01 sets a detection time 
+			 * threshold of 10ms.
+			 *
+			 * Note that motion detect mode is fixed at 10Hz sampling rage.
+			 *
+			 * 0x1A should set motion and free fall detection time threshold to 
+			 * 100ms.
+			 */ 
+			as_config.MDFFTMR=0x1A;
 
 			// Start sensor in motion detection mode
-			as_start(AS_ACTIVITY_MODE);
+			as_config.mode = AS_ACTIVITY_MODE;
+
 			// After this call interrupts will be generated
+			as_start(as_config.mode);
 		}
 
-		if (!as_ok)
-		{
-			display_chars(0, LCD_SEG_L1_3_0, "FAIL", SEG_SET);
-		}
-		display_chars(0, LCD_SEG_L1_3_0 , "ACTI", SEG_SET);
-		display_chars(0, LCD_SEG_L2_4_0 , "MODE", SEG_SET);
-
-
+		if (!as_ok) display_chars(0, LCD_SEG_L1_3_0, "FAIL", SEG_SET);
+	  else update_menu();
 	}
 	/* return to main screen */
 	lcd_screen_activate(0);
@@ -441,24 +463,22 @@ static void acc_deactivated()
 	lcd_screens_destroy();
 
 	/* clean up screen */
-	
-	display_clear(0, 1);
-	display_clear(0, 2);
-
+	display_clear(0, 0);
 
 	/* do not disable anything if in background mode */
-	if	(sAccel.mode == ACCEL_MODE_BACKGROUND) return;
-	else 	/* clear symbols only if not in backround mode*/
-	//display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_OFF);
+	if	(sAccel.mode != ACCEL_MODE_BACKGROUND)  {
+    /* clear symbols only if not in backround mode*/
+    //display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_OFF);
 
-	/* otherwise shutdown all the stuff
-	** deregister from the message bus */
-	sys_messagebus_unregister(&as_event);
-	/* Stop acceleration sensor */
-	as_stop();
+    /* otherwise shutdown all the stuff
+    ** deregister from the message bus */
+    sys_messagebus_unregister(&as_event);
+    /* Stop acceleration sensor */
+    as_stop();
 
-	/* Clear mode */
-	sAccel.mode = ACCEL_MODE_OFF;
+    /* Clear mode */
+    sAccel.mode = ACCEL_MODE_OFF;
+  }
 }
 
 
