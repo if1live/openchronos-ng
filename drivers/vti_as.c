@@ -172,77 +172,62 @@ void as_init(void)
 
 void change_mode(enum AC_DETECTION_MODE mode)
 {
+  /* 
+   * Default configuration when all bits are zero:
+   * G_RANGE: 8G
+   * INT_LEVEL: INT is active high
+   * MDET_EXIT: device goes into 400Hz sampling after motion detection
+   * I2C_DIS: I2C interface enabled
+   * MODE: Power down, default
+   * INT_DIS: interrupts enabled
+   */ 
 	uint8_t bConfig = 0x00;
 
-/* Configure sensor and start to sample data */
+  if (as_config.range == 2) bConfig |= 0x80;
+  // Configure sensor and start to sample data
 	switch (mode) {
 	case AS_FALL_MODE:
-		if (as_config.range == 2) {
-			bConfig = 0x80;
-
-			if (as_config.sampling == SAMPLING_100_HZ)
-				bConfig |= 0x0A;
-			else if (as_config.sampling == SAMPLING_400_HZ)
-				bConfig |= 0x0C;
-		} else if (as_config.range == 8) {
-			bConfig = 0x00;
-
-			if (as_config.sampling == SAMPLING_100_HZ)
-				bConfig |= 0x0A;
-			else if (as_config.sampling == SAMPLING_400_HZ)
-				bConfig |= 0x0C;
+		switch (as_config.sampling) {
+		case SAMPLING_100_HZ:
+		  bConfig |= 0x0A; break;
+		case SAMPLING_400_HZ:
+		  bConfig |= 0x0C; break;
 		}
 
-		/* fall time as long as possible 150 msec at 100 Hz */
+		// configure parameters for detection. Signal must exceed the
+		// threshold for at least some amount of time.
 		write_FFTMR(as_config.MDFFTMR);
-		/* threshold for computation */
 		write_FFTHR(as_config.FFTHR);
 
 		break;
 
 	case AS_MEASUREMENT_MODE:
-
-		/* Configure sensor and start to sample data */
-		if (as_config.range == 2) {
-			bConfig = 0x80;
-
-			if (as_config.sampling == SAMPLING_100_HZ)
-				bConfig |= 0x02;
-			else if (as_config.sampling == SAMPLING_400_HZ)
-				bConfig |= 0x04;
-		} else if (as_config.range == 8) {
-			bConfig = 0x00;
-
-			if (as_config.sampling == SAMPLING_40_HZ)
-				bConfig |= 0x06;
-			else if (as_config.sampling == SAMPLING_100_HZ)
-				bConfig |= 0x02;
-			else if (as_config.sampling == SAMPLING_400_HZ)
-				bConfig |= 0x04;
+		switch (as_config.sampling) {
+		case SAMPLING_100_HZ:
+		  bConfig |= 0x02; break;
+		case SAMPLING_400_HZ:
+		  bConfig |= 0x04; break;
+		case SAMPLING_40_HZ:
+		  // TODO need to check that this is only enabled when in 8 g mode, 
+		  // and set as_ok to no otherwise
+		  bConfig |= 0x06; break;
 		}
-
 		break;
 
 	case AS_ACTIVITY_MODE:
+	  /*
+	   * Note that in motion detection mode, the measurement range is fixed
+     * at 8 g. We ignore as_config's value entirely. The G_RANGE bit 
+     * is used to determine the measurement range when MDET_EXIT is set.
+     */ 
+    bConfig |= 0x08;
 
-		/* Configure sensor and start to sample data */
-		if (as_config.range == 2) {
-			bConfig = 0x80;
-
-			if (as_config.sampling == SAMPLING_10_HZ)
-				bConfig |= 0x08;
-		} else if (as_config.range == 8) {
-			bConfig = 0x00;
-
-			if (as_config.sampling == SAMPLING_10_HZ)
-				bConfig |= 0x08;
-		}
-
+		// stay in motion detection mode after detecting motion
 		bConfig |= MDET_EXIT << 5;
-		/* fall time as long as possible 150 msec at 100 Hz */
+
+		// configure parameters for detection. Signal must exceed the
+		// threshold for at least some amount of time.
 		write_MDTMR(as_config.MDFFTMR);
-		/* check if lower than 571 mgrav */
-		/* write_MDTHR(sAccel.MDTHR); */
 		write_MDTHR(as_config.MDTHR);
 		break;
 
@@ -252,13 +237,12 @@ void change_mode(enum AC_DETECTION_MODE mode)
 
 	}
 
-	/* Wait 2 ms before entering modality to settle down */
+	// Wait 2 ms before entering modality to settle down
 	timer0_delay(2, LPM3_bits);
 
-	/* write the configuration */
 	as_write_register(ADDR_CTRL, bConfig);
 
-	/* Wait 2 ms before entering modality to settle down */
+	// Wait 2 ms before entering modality to settle down
 	timer0_delay(2, LPM3_bits);
 
 }
