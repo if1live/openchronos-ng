@@ -454,9 +454,9 @@ void as_get_data(uint8_t *data)
 		return;
 
 	/* Store X/Y/Z acceleration data in buffer */
-	*(data + 0) = as_read_register(0x06);
-	*(data + 1) = as_read_register(0x07);
-	*(data + 2) = as_read_register(0x08);
+	*(data + 0) = as_get_x();
+	*(data + 1) = as_get_y();
+	*(data + 2) = as_get_z();
 }
 
 uint8_t as_get_x(void)
@@ -482,8 +482,6 @@ uint8_t as_get_z(void)
 
 	return as_read_register(0x08);
 }
-
-
 
 uint8_t as_get_status()
 {
