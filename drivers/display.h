@@ -203,12 +203,17 @@ void lcd_screens_destroy(void);
 	\brief Activates a virtual screen
 	\details Virtual screens are used to display data outside of the real screen. See lcd_screens_create() on how to create virtual screens.<br />
 	This function selects the active screen. The active screen is the screen where any writes to it will be imediately displayed in the real screen.
-	\note If you set the <i>scr_nr</i> to 0xff, the next screen will be automatically activated.
+	\note If you set the <i>scr_nr</i> to 0xff, the next screen will be automatically activated, looping around if required.
 	\sa lcd_screens_destroy(), lcd_screens_create()
 */
 void lcd_screen_activate(
 	uint8_t scr_nr /*!< the screen number to activate, or 0xff */
 );
+
+/**
+ * @return      returns the screen number of the currently active screen
+ */ 
+uint8_t active_lcd_screen();
 
 /* Not to be used by modules */
 void start_blink(void);
@@ -339,10 +344,19 @@ void display_symbol(
 
 
 /*!
-	\brief pseudo sprintf function
-	\details Returns a pointer to the string containing the number <i>n</i> formatted according to <i>fmt</i>. The format is NOT compatible with stdio's format.
+	Pseudo sprintf function
+	
+	Returns a pointer to c-string containing the number <code>n</code> formatted
+	according to <code>fmt</code>. Note that because a shared char array is
+	used this code is not re-entrant, so try not to use it in ISAs.
+
+  Only a subset of the usual format specifiers are supported. Namely d, u and x.
+  In addition field width and 0 padding are also supported.
+
+  Note that if field width is not given, then it is assumed to be 3.
+
 	Example:
-	\code
+	<code>
 	// returns " 8"
 	_sprintf("%2u", 8);
 	
@@ -360,11 +374,11 @@ void display_symbol(
 
 	// returns "st1x"
 	_sprintf("st%1ux", 1)
-	\endcode
-	
-	<b>WARNING:</b> You must always specify the number of digits or bad results will happen! "%u" formats are not allowed! 
+  </code>
 
-	\return a pointer to a string
+  @param  fmt   format specifier
+  @param  n     number to format
+  @return       pointer to formatted c-string
 */
 
 char *_sprintf(
