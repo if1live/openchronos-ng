@@ -42,13 +42,10 @@ enum DISPLAY_AXIS {
 };
 
 // Stop acceleration measurement after 60 minutes to save battery
-// This parameter is ignored if in background mode!
+// This parameter is ignored if in background mode! Unit in minutes.
 #define ACCEL_MEASUREMENT_TIMEOUT		(60u)
 
-
-
 // *** Tunes for accelerometer synestesia
-
 static note smb[] = {0x2588, 0x000F};
 
 // *************************************************************************************************
@@ -60,16 +57,19 @@ struct accel
 	// Sensor raw data
 	uint8_t	xyz[3];
 
-	// Acceleration data in 10 * mgrav
+	// Current acceleration data along one of the x, y or z axis, in mgrav
 	int16_t data;
 
-	// Sensor old data for FIR filter
+	// Same as above, but for the previous update. Used as part of an
+	// exponential moving average to smooth the output
 	int16_t data_prev;
 
-	// Timeout: should be decreased with the 1 minute RTC event
+	// Timeout: should be decreased with the 1 minute RTC event. When it reaches
+	// 0 accelerometer is turned off. Unit is minutes.
 	uint16_t timeout;
 
-	// Determines which acceleration axis is displayed
+	// Determines which acceleration axis is displayed. This also affects which
+	// axis' acceleration isn in data and data_prev
 	enum DISPLAY_AXIS display_axis;
 };
 extern struct accel sAccel;
@@ -112,12 +112,12 @@ int16_t raw_accel_to_mgrav(uint8_t value)
 {
   /*
    * OK, here is the thing: if you look at the bit-to-mgrav tables, the mgrav
-   * values approximately doubles for each higher bit. While we can use a
-   * lookup table and compute the output "exactly" according to the datasheet,
+   * values approximately doubles for each successive bit. While we can use a
+   * lookup table and compute the output _exactly_ according to the datasheet,
    * we could also just multiply the 2s complement number by the unit mgrav
    * value, which is 18 mg for 2 g measurement range at 100 or 400Hz, and
    * 71 mg otherwise. While this leads to some lose of accuracy, the clarity
-   * in code in my opinion more than makes up for it
+   * of code in my opinion more than makes up for it
    */
 
 	// first determine which base unit of mg to use
