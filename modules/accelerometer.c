@@ -37,15 +37,14 @@ enum ACCEL_MODE {
 enum DISPLAY_AXIS {
   DISPLAY_AXIS_X,
   DISPLAY_AXIS_Y,
-  DISPLAY_AXIS_Z
+  DISPLAY_AXIS_Z,
+  DISPLAY_AXIS_MAX,
 };
 
 // Stop acceleration measurement after 60 minutes to save battery
 // This parameter is ignored if in background mode!
 #define ACCEL_MEASUREMENT_TIMEOUT		(60u)
 
-// Conversion values from data to mgrav taken from CMA3000-D0x datasheet (rev 0.4, table 4)
-const uint16_t mgrav_per_bit[7] = { 18, 36, 71, 143, 286, 571, 1142 };
 
 
 // *** Tunes for accelerometer synestesia
@@ -62,10 +61,10 @@ struct accel
 	uint8_t	xyz[3];
 
 	// Acceleration data in 10 * mgrav
-	uint16_t data;
+	int16_t data;
 
 	// Sensor old data for FIR filter
-	uint16_t data_prev;
+	int16_t data_prev;
 
 	// Timeout: should be decreased with the 1 minute RTC event
 	uint16_t timeout;
@@ -74,8 +73,6 @@ struct accel
 	enum DISPLAY_AXIS display_axis;
 };
 extern struct accel sAccel;
-
-
 
 static enum {
 	VIEW_SET_MODE = 0,
@@ -95,54 +92,45 @@ extern uint8_t as_ok;
 void display_data(uint8_t display_id);
 
 // *************************************************************************************************
-// @fn          is_acceleration_measurement
+// @fn          is_measuring_acceleration
 // @brief       Returns 1 if acceleration is currently measured.
 // @param       none
 // @return      u8		1 = acceleration measurement ongoing
 // *************************************************************************************************
-uint8_t is_acceleration_measurement(void)
+uint8_t is_measuring_acceleration(void)
 {
 	return ((sAccel.mode == ACCEL_MODE_ON) && (sAccel.timeout > 0));
 }
 
 // *************************************************************************************************
-// @fn          acceleration_value_is_positive
-// @brief       Returns 1 if 2's complement number is positive
-// @param       u8 value	2's complement number
-// @return      u8			1 = number is positive, 0 = number is negavtive
-// *************************************************************************************************
-uint8_t acceleration_value_is_positive(uint8_t value)
-{
-	return ((value & (BIT7)) == 0);
-}
-
-
-// *************************************************************************************************
-// @fn          convert_acceleration_value_to_mgrav
+// @fn          raw_accel_to_mgrav
 // @brief       Converts measured value to mgrav units
 // @param       u8 value	g data from sensor 
 // @return      u16			Acceleration (mgrav)
 // *************************************************************************************************
-uint16_t convert_acceleration_value_to_mgrav(uint8_t value)
+int16_t raw_accel_to_mgrav(uint8_t value)
 {
-	uint16_t result;
-	uint8_t i;
-	
-	if (!acceleration_value_is_positive(value))
-	{
-		// Convert 2's complement negative number to positive number
-		value = ~value;
-		value += 1;
-	}
-	
-	result = 0;
-	for (i=0; i<7; i++)
-	{
+  /*
+   * OK, here is the thing: if you look at the bit-to-mgrav tables, the mgrav
+   * values approximately doubles for each higher bit. While we can use a
+   * lookup table and compute the output "exactly" according to the datasheet,
+   * we could also just multiply the 2s complement number by the unit mgrav
+   * value, which is 18 mg for 2 g measurement range at 100 or 400Hz, and
+   * 71 mg otherwise. While this leads to some lose of accuracy, the clarity
+   * in code in my opinion more than makes up for it
+   */
 
-		result += ((value & (BIT(i)))>>i) * mgrav_per_bit[i];
-	}
-	
-	return (result);
+	// first determine which base unit of mg to use
+	uint8_t unit_mgrav = 71;
+
+	if (as_config.range == 2 && 
+	    (as_config.sampling == SAMPLING_100_HZ || 
+	     as_config.sampling == SAMPLING_400_HZ)) {
+	  unit_mgrav = 18;
+  }
+
+  int16_t result = ((int8_t)value)*unit_mgrav;
+  return result;
 }
 
 void update_menu()
@@ -212,10 +200,9 @@ static void up_btn()
 			break;
 
 		case VIEW_AXIS:
-			//display_chars(0,LCD_SEG_L1_3_0 , "TODO", SEG_SET);
 			if (as_config.mode == AS_MEASUREMENT_MODE) {
-        display_clear(0,0);
-        display_data(0);
+			  sAccel.display_axis += 1;
+			  sAccel.display_axis %= DISPLAY_AXIS_MAX;
       }
 			break;
 
@@ -257,7 +244,9 @@ static void star_long_pressed()
 void display_data(uint8_t display_id)
 {
 	uint8_t raw_data=0;
-	uint16_t accel_data=0;
+	int16_t accel_data=0;
+
+	display_clear(display_id,0);
 
 	// Convert X/Y/Z values to mg
 	switch (sAccel.display_axis)
@@ -274,7 +263,16 @@ void display_data(uint8_t display_id)
 			raw_data = sAccel.xyz[2];
 			display_char(display_id,LCD_SEG_L1_3, 'Z', SEG_ON);
 			break;
+		default:
+		  display_chars2(display_id,1, "ERR", ALIGN_RIGHT, SEG_ON);
+		  break;
 	}
+  
+  accel_data = raw_accel_to_mgrav(raw_data);
+	
+	// update current and previous acceleration values
+	sAccel.data_prev = sAccel.data;
+	sAccel.data = accel_data;
 
 	// Filter acceleration
 	#ifdef FIXEDPOINT
@@ -283,25 +281,26 @@ void display_data(uint8_t display_id)
 	accel_data = (uint16_t)((sAccel.data_prev * 0.2) + (sAccel.data * 0.8));
 	#endif
 
-	// Store average acceleration
-	sAccel.data = sAccel.data_prev;
+  display_chars2(
+      display_id, 
+      2, 
+      _sprintf("%4d", accel_data), 
+      ALIGN_RIGHT, 
+      SEG_ON);
 
-	// Display acceleration in x.xx format in the second screen this is real time!
-	display_chars(display_id,LCD_SEG_L1_2_0, _sprintf("%03s", accel_data), SEG_ON);
-
-	// Display sign
-	if (acceleration_value_is_positive(raw_data)) {
+  /* This isn't really required b/c _sprintf puts in the sign anyway
+  display_symbol(display_id,LCD_SYMB_ARROW_UP, SEG_OFF);
+  display_symbol(display_id,LCD_SYMB_ARROW_DOWN, SEG_OFF);
+	if (accel_data > 0) {
 		display_symbol(display_id,LCD_SYMB_ARROW_UP, SEG_ON);
-		display_symbol(display_id,LCD_SYMB_ARROW_DOWN, SEG_OFF);
-	} else {
-		display_symbol(display_id,LCD_SYMB_ARROW_UP, SEG_OFF);
+	} else if (accel_data < 0) {
 		display_symbol(display_id,LCD_SYMB_ARROW_DOWN, SEG_ON);
 	}
+	*/
 }
 
 static void as_event(enum sys_message msg)
 {
-  buzzer_play(smb);
 	if ( (msg & SYS_MSG_RTC_MINUTE) == SYS_MSG_RTC_MINUTE)
 	{
 		if(sAccel.mode == ACCEL_MODE_ON) sAccel.timeout--;
@@ -317,42 +316,34 @@ static void as_event(enum sys_message msg)
 	}
 	if ( (msg & SYS_MSG_AS_INT) == SYS_MSG_AS_INT)
 	{
-		//Check the vti register for status information
+		// Check the vti register for status information
 		as_status.all_flags=as_get_status();
-		//TODO For debugging only
-		_printf(0, LCD_SEG_L1_1_0, "%1u", as_status.all_flags);	
-		buzzer_play(smb);
-		//if we were in free fall or motion detection mode check for the event
+
+		// if we were in free fall or motion detection mode check for the event
 		if(as_status.int_status.falldet || as_status.int_status.motiondet){
 
-			//if such an event is detected enable the symbol
-			//display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_ON);
+			// if such an event is detected enable the symbol
+			display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_ON);
 			
-			//read the data
-			as_get_data(sAccel.xyz);
-			//display_data(0);
 			/* update menu screen */
 			lcd_screen_activate(0);
 
-		}//if we were in measurment mode do a measurement and put it in the virtual screen
-		else
-		{
-
-			//display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_OFF);
+      // play a little song to indicate an event happened
+      buzzer_play(smb);
+		} else {
 			as_get_data(sAccel.xyz);
 			display_data(1);
 			/* refresh to accelerometer screen only if in that modality */
 			if (submenu_state == VIEW_AXIS ) lcd_screen_activate(1);
-      buzzer_play(smb);
 		}
 	}
 	/* The 1 Hz timer is used to refresh the menu screen */
 	if ( (msg & SYS_MSG_RTC_SECOND) == SYS_MSG_RTC_SECOND)
 	{
-	/*check the status register for debugging purposes */
-	//_printf(0, LCD_SEG_L1_1_0, "%1u", as_read_register(ADDR_INT_STATUS));	
-	/* update menu screen */
-	lcd_screen_activate(0);
+    /*check the status register for debugging purposes */
+    //_printf(0, LCD_SEG_L1_1_0, "%1u", as_read_register(ADDR_INT_STATUS));	
+    /* update menu screen */
+    lcd_screen_activate(0);
 	}
 }
 
