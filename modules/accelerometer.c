@@ -72,6 +72,7 @@ struct accel
 	// axis' acceleration isn in data and data_prev
 	enum DISPLAY_AXIS display_axis;
 };
+
 extern struct accel sAccel;
 
 static enum {
@@ -79,7 +80,7 @@ static enum {
 	VIEW_SET_PARAMS,
 	VIEW_STATUS,
 	VIEW_AXIS,
-	VIEWMODE_MAX
+	VIEW_MAX
 } submenu_state;
 
 
@@ -141,9 +142,9 @@ void update_menu()
 
 			if(as_config.mode==AS_FALL_MODE)
 				display_chars(0, LCD_SEG_L1_3_0 , "FALL", SEG_SET);
-			else if(as_config.mode==AS_MEASUREMENT_MODE)
+			else if(as_config.mode==AS_MEASUREMENT_MODE) 
 				display_chars(0, LCD_SEG_L1_3_0 , "MEAS", SEG_SET);
-			else if(as_config.mode==AS_ACTIVITY_MODE)
+      else if(as_config.mode==AS_ACTIVITY_MODE)
 				display_chars(0, LCD_SEG_L1_3_0 , "ACTI", SEG_SET);
 			
 			display_chars(0, LCD_SEG_L2_4_0 , "MODE", SEG_SET);
@@ -171,13 +172,19 @@ void update_menu()
 // This change the sub menu
 static void num_pressed()
 {
-	// Change the sub menu code
-	submenu_state++;
-	submenu_state %= VIEWMODE_MAX;
-	// now update the menu
-	update_menu();
+  submenu_state += 1;
+  submenu_state %= VIEW_MAX;
 
+  if (as_config.mode == AS_MEASUREMENT_MODE) {
+    while ( submenu_state != VIEW_SET_MODE &&
+            submenu_state != VIEW_AXIS ) {
+      submenu_state += 1;
+      submenu_state %= VIEW_MAX;
+    }
+  } 
 
+  update_menu();
+  lcd_screen_activate(0);
 }
 
 static void up_btn()
@@ -201,16 +208,17 @@ static void up_btn()
 
 		case VIEW_AXIS:
 			if (as_config.mode == AS_MEASUREMENT_MODE) {
-			  sAccel.display_axis += 1;
-			  sAccel.display_axis %= DISPLAY_AXIS_MAX;
+			  if (active_lcd_screen() != 1) lcd_screen_activate(1);
+        else {
+          sAccel.display_axis += 1;
+          sAccel.display_axis %= DISPLAY_AXIS_MAX;
+        }
       }
 			break;
 
 		default:
 			break;
 	}
-	/* update menu screen */
-	lcd_screen_activate(0);
 }
 
 static void down_btn()
@@ -253,18 +261,18 @@ void display_data(uint8_t display_id)
 	{
 		case DISPLAY_AXIS_X: 	
 			raw_data = sAccel.xyz[0];
-			display_char(display_id,LCD_SEG_L1_3, 'X', SEG_ON);
+			display_char(display_id,LCD_SEG_L1_3, 'X', SEG_SET);
 			break;
 		case DISPLAY_AXIS_Y: 	
 			raw_data = sAccel.xyz[1];
-			display_char(display_id,LCD_SEG_L1_3, 'Y', SEG_ON);
+			display_char(display_id,LCD_SEG_L1_3, 'Y', SEG_SET);
 			break;
 		case DISPLAY_AXIS_Z: 	
 			raw_data = sAccel.xyz[2];
-			display_char(display_id,LCD_SEG_L1_3, 'Z', SEG_ON);
+			display_char(display_id,LCD_SEG_L1_3, 'Z', SEG_SET);
 			break;
 		default:
-		  display_chars2(display_id,1, "ERR", ALIGN_RIGHT, SEG_ON);
+		  display_chars2(display_id,1, "ERR", ALIGN_RIGHT, SEG_SET);
 		  break;
 	}
   
@@ -286,7 +294,7 @@ void display_data(uint8_t display_id)
       2, 
       _sprintf("%4d", accel_data), 
       ALIGN_RIGHT, 
-      SEG_ON);
+      SEG_SET);
 
   /* This isn't really required b/c _sprintf puts in the sign anyway
   display_symbol(display_id,LCD_SYMB_ARROW_UP, SEG_OFF);
@@ -314,6 +322,7 @@ static void as_event(enum sys_message msg)
 		}
 
 	}
+
 	if ( (msg & SYS_MSG_AS_INT) == SYS_MSG_AS_INT)
 	{
 		// Check the vti register for status information
@@ -332,19 +341,14 @@ static void as_event(enum sys_message msg)
       buzzer_play(smb);
 		} else {
 			as_get_data(sAccel.xyz);
-			display_data(1);
-			/* refresh to accelerometer screen only if in that modality */
-			if (submenu_state == VIEW_AXIS ) lcd_screen_activate(1);
 		}
 	}
-	/* The 1 Hz timer is used to refresh the menu screen */
-	if ( (msg & SYS_MSG_RTC_SECOND) == SYS_MSG_RTC_SECOND)
-	{
-    /*check the status register for debugging purposes */
-    //_printf(0, LCD_SEG_L1_1_0, "%1u", as_read_register(ADDR_INT_STATUS));	
-    /* update menu screen */
-    lcd_screen_activate(0);
-	}
+
+	if (SYS_MSG_PRESENT(msg, SYS_MSG_TIMER_20HZ)) {
+      if (as_config.mode == AS_MEASUREMENT_MODE) {
+        display_data(1);
+      }
+  }	  
 }
 
 /* Enter the accelerometer menu */
@@ -353,7 +357,7 @@ static void acc_activated()
 	//register to the system bus for vti events as well as the RTC minute events
 	sys_messagebus_register(
 	    &as_event, 
-	    SYS_MSG_AS_INT | SYS_MSG_RTC_MINUTE | SYS_MSG_RTC_SECOND
+	    SYS_MSG_AS_INT | SYS_MSG_RTC_MINUTE | SYS_MSG_TIMER_20HZ
 	);
 
 
