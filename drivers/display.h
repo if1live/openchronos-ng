@@ -307,7 +307,7 @@ void display_chars(
 */
 void display_chars2(
   uint8_t scr_nr, /*!< the virtual screen number where to display */
-  uint8_t line, /*!< the LCD line to display on */
+  uint8_t line, /*!< the LCD line to display on, either 1 or 2 */
   char const * str, /*!< A pointer to a vector of chars to be displayed */
   enum string_alignment alignment, /*!< how the text should be aligned */
   enum display_segstate state  /*!< A bitfield with state operations to be performed on the segment */
@@ -350,10 +350,10 @@ void display_symbol(
 	_sprintf("%04u", 20);
 
 	// returns "-048"
-	_sprintf("%03s", -48);
+	_sprintf("%03d", -48);
 
 	// returns " 048"
-	_sprintf("%03s", 48);
+	_sprintf("%03d", 48);
 
 	// returns "0xff"
 	_sprintf("0x%02", 0xff);

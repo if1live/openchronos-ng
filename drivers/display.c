@@ -527,10 +527,14 @@ char *_sprintf(const char *fmt, int16_t n) {
 		}
 		i++;
 
-		int8_t digits = 0;
+    // XXX I know the docs says you can't pass in %u etc, and you must
+    // specified the width... but screw it. Default to 3 digits because
+    // that is the minimum display width taking into account a sign
+    // digit
+		int8_t digits = 3;
 		int8_t zpad = ' ';
 		/* parse int substitution */
-		while (fmt[i] != 's' && fmt[i] != 'u' && fmt[i] != 'x') {
+		while (fmt[i] != 'd' && fmt[i] != 'u' && fmt[i] != 'x') {
 			if (fmt[i] == '0')
 				zpad = '0';
 			else
@@ -539,7 +543,7 @@ char *_sprintf(const char *fmt, int16_t n) {
 		}
 
 		/* show sign */
-		if (fmt[i] == 's') {
+		if (fmt[i] == 'd') {
 			if (n < 0) {
 				sprintf_str[j++] = '-';
 				n = (~n) + 1;
@@ -701,7 +705,7 @@ void display_chars2(uint8_t scr_nr,
   } else if (line == 2) {
     lcdlen = l2len;
     startseg = l2start;
-  }
+  } else return;
 
   // if string length is greater than lcd length, then just throw
   // away additional characters
