@@ -164,8 +164,8 @@ static void stopwatch_event() {
 
 /* Activation of the module */
 static void stopwatch_activated() {
-	display_symbol(0, LCD_SEG_L2_COL0, SEG_ON);
-	display_symbol(0, LCD_SEG_L2_COL1, SEG_ON);
+	display_symbol(0, LCD_SEG_L2_COL0, SEG_ON|BLINK_ON);
+	display_symbol(0, LCD_SEG_L2_COL1, SEG_ON|BLINK_ON);
 	if (sSwatch_conf.state == SWATCH_MODE_BACKGROUND) {
 		sSwatch_conf.state = SWATCH_MODE_ON;
 		return;
