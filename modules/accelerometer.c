@@ -16,6 +16,27 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+/**
+ * Module for accessing the various features of the CMA3000 accelerometer.
+ *
+ * <h3>User Guide</h3>
+ * The module starts in MODE selection, indicated by MODE in the bottom
+ * display. Pressing # will cycle through ACTI, FALL, and MEAS.
+ *
+ * <ul>
+ *  <li>ACTI: Activity mode. The watch will beep and the alarm icon will flash
+ *  when activity is detected.</li>
+ *
+ *  <li>FALL: Freefall mode. The watch will beep and the alarm icon will flash
+ *  when freefall is detected.<li>
+ *
+ *  <li>MEAS: Measurement mode. Press # to exit selection mode and enter DATA
+ *  mode, indicated by DATA in the bottom display. Press UP to cycle through
+ *  the three acceleration axis x, y, and z. The active axis is displayed on
+ *  the top display, while the acceleration, in milli-gravities, is displayed
+ *  on the bottom display. Press # to get back to MODE selection.</li>
+ * </lu>
+ */
 #include <openchronos.h>
 
 /* driver list */
@@ -23,7 +44,8 @@
 #include <drivers/rtca.h>
 #include <drivers/vti_as.h>
 #include <drivers/buzzer.h>
-// *************************************************************************************************
+
+// ***************************************************************************
 // Defines section
 
 #define BIT(x) (1uL << (x))
@@ -48,7 +70,7 @@ enum DISPLAY_AXIS {
 // *** Tunes for accelerometer synestesia
 static note smb[] = {0x2588, 0x000F};
 
-// *************************************************************************************************
+// ***************************************************************************
 // Global Variable section
 struct accel
 {
@@ -92,23 +114,23 @@ extern uint8_t as_ok;
 // Prototypes
 void display_data(uint8_t display_id);
 
-// *************************************************************************************************
+// ***************************************************************************
 // @fn          is_measuring_acceleration
 // @brief       Returns 1 if acceleration is currently measured.
 // @param       none
 // @return      u8		1 = acceleration measurement ongoing
-// *************************************************************************************************
+// ***************************************************************************
 uint8_t is_measuring_acceleration(void)
 {
 	return ((sAccel.mode == ACCEL_MODE_ON) && (sAccel.timeout > 0));
 }
 
-// *************************************************************************************************
+// ***************************************************************************
 // @fn          raw_accel_to_mgrav
 // @brief       Converts measured value to mgrav units
 // @param       u8 value	g data from sensor 
 // @return      u16			Acceleration (mgrav)
-// *************************************************************************************************
+// ***************************************************************************
 int16_t raw_accel_to_mgrav(uint8_t value)
 {
   /*
@@ -329,7 +351,7 @@ static void as_event(enum sys_message msg)
 		as_status.all_flags=as_get_status();
 
 		// if we were in free fall or motion detection mode check for the event
-		if(as_status.int_status.falldet || as_status.int_status.motiondet){
+		if(as_status.int_status.falldet || as_status.int_status.motiondet) {
 
 			// if such an event is detected enable the symbol
 			display_symbol(0, LCD_ICON_ALARM , SEG_SET | BLINK_ON);
