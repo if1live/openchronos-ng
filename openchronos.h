@@ -121,6 +121,8 @@ enum sys_message {
 	SYS_MSG_BATT =    BITC,
 };
 
+#define SYS_MSG_PRESENT(a,b) ((a&b)==b)
+
 /*!
 	\brief Linked list of nodes listening to the message bus.
 */
