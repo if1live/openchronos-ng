@@ -102,7 +102,12 @@ void buzzer_play(note *notes)
 	buzzer_stop();
 }
 
-void buzzer_play_alert1() {
+void buzzer_play_alert() {
+   note alert[] = {0x1908, 0x000F};
+   buzzer_play(alert);
+}
+
+void buzzer_play_alert2x() {
    note alert[] = {0x1908, 0x1000, 0x1908, 0x000F};
    buzzer_play(alert);
 }

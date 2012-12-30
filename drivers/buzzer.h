@@ -38,9 +38,14 @@ void buzzer_init(void);
 void buzzer_play(note *notes);
 
 /**
- * Plays a short alert consisting of 2 beeps, suitable for alerts.
+ * Plays a short alert consisting of 1 beep.
+ */
+void buzzer_play_alert();
+
+/**
+ * Same as buzzer_play_alert, but 2 beeps in quick succession.
  * Can be called once a second.
  */ 
-void buzzer_play_alert1();
+void buzzer_play_alert2x();
 
 #endif /*BUZZER_H_*/
