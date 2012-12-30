@@ -4,8 +4,7 @@
 void draw_current_timer(uint16_t elapsed, const char *expected) {
 
   uint16_t hours = elapsed/3600;
-  elapsed -= hours*3600;
-  uint16_t minutes = elapsed/60;
+  uint16_t minutes = (elapsed/60)%60;
   uint8_t seconds = elapsed%60;
 
   printf("%02d:%02d:%02d\t%s\n", hours, minutes, seconds, expected);
