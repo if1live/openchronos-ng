@@ -1110,6 +1110,13 @@ config.macros.checkbox = {
 <div title="DefaultTiddlers" creator="SteveBian" modifier="SteveBian" created="201203260331" modified="201212172020" changecount="2">
 <pre></pre>
 </div>
+<div title="EditMode" creator="SteveBian" modifier="SteveBian" created="201212282254" changecount="1">
+<pre>The intention behind edit mode is that all modules use a consistent method of adjusting parameters. To this end openchronos-ng provides {{{menu_editmode_start}}} and {{{struct menu_editmode_item}}}.
+
+To enter edit mode, a module should call {{{menu_editmode_start}}} with a completion handler, to be called when the user exits edit mode, and an array of {{{struct menu_editmode_items}}}. {{{struct menu_editmode_item}}} is essentially a wrapper for 3 function handlers. One is called when the item is selected, one is called when it is deselected, and the last is called when the value of the item changes. This last function is called with 1 if the user pressed up, and -1 if the user pressed down.
+
+What exactly is an item? As far as I can tell, an item can be anything. For the alarm clock module, the hour of the alarm is an item, the minute is also an item. It is up to you what is an item, though keep in mind that an item's value can only be adjusted using the up and down buttons. Therefore, it would be annoying to make the hour and minute of an alarm one item, since it takes many presses to set the alarm time.</pre>
+</div>
 <div title="FNDPreviewPlugin" creator="SteveBian" modifier="SteveBian" created="201108191338" tags="systemConfig" changecount="1">
 <pre>/***
 |''Name''|TiddlerPreviewPlugin|
