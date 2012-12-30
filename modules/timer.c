@@ -27,15 +27,25 @@
  *
  */
 
-#include <openchronos.h>
-/* driver */
-#include <drivers/display.h>
+#include <string.h>
 
-/* Defines */
-typedef static enum timer_state {
+#include <openchronos.h>
+
+#include <drivers/display.h>
+#include <drivers/buzzer.h>
+
+typedef enum timer_state {
+  // no timers are running in the module
   MODULE_STOPPED,
+
+  // at least one timer is running in the module
   MODULE_RUNNING,
+
+  // at least one timer is running in the background, or at least
+  // timer has expired
   MODULE_BACKGROUND,
+
+  // current timer is being edited
   MODULE_EDIT,
 } ModuleState;
 
@@ -46,29 +56,82 @@ typedef struct {
   // number of seconds remaining
   uint16_t remaining;
 
-  // whether we are running
+  // whether we are running, either 1 or 0. Must never be any other
+  // value
   uint8_t running;
+
+  // for time keeping, increments at 20Hz, having one tick variable
+  // per timer allows interval accuracy of 0.02
+  uint8_t ticks;
 } Timer;
 
-ModuleState _module_state;
-Timer _timers[CONFIG_MOD_TIMER_COUNT];
+static ModuleState _module_state;
+static Timer _timers[CONFIG_MOD_TIMER_COUNT];
 // index of current timer
-uint8_t _current_timer;
+static uint8_t _current_timer;
+
+static note _alarm_notes[] = {0x1908, 0x1000, 0x1908, 0x000F};
+static uint8_t _alarm_ticks = 0xff;
+
+static void draw_current_timer();
+
+static uint8_t timer_is_expired(Timer *tp) {
+  return tp->interval && tp->remaining == 0;
+}
+
+static void timer_reset(Timer *tp) {
+  tp->remaining = tp->interval;
+  tp->ticks = 0;
+}
+
+static uint8_t number_of_running_timers() {
+  uint8_t idx;
+  uint8_t cnt;
+
+  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    cnt += _timers[idx].running;
+  }
+
+  return cnt;
+}
+
+static uint8_t number_of_expired_timers() {
+  uint8_t idx;
+  uint8_t cnt;
+
+  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    if (timer_is_expired(_timers+idx)) cnt += 1;
+  }
+
+  return cnt;
+}
+
+// Updates _current_timer to the highest numbered expired timer, if
+// any. If none, _current_timer is unchanged
+static void show_expired_timer() {
+  uint8_t idx;
+  for (idx = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    if (timer_is_expired(_timers+idx)) _current_timer = idx;
+  }
+  draw_current_timer();
+}
 
 // draws the current timer to the screen
-void draw_current_timer(void) {
+static void draw_current_timer() {
   // do not draw if we are in background
   if (_module_state == MODULE_BACKGROUND) return;
   
-  Timer *curtimer = _timers[_current_timer];
+  display_clear(0, 0);
+
+  Timer *curtimer = _timers+_current_timer;
 
   char *dispstr = NULL;
-  if (_current_timer < 10) dispstr = _sprintf("TMR%d", _current_timer);
+  if (_current_timer < 10) dispstr = _sprintf("TMR%1d", _current_timer);
   else if (_current_timer < 100) {
-    dispstr = _sprintf("T %d", _current_timer);
-  } else dispstr = _sprintf("%d", _current_timer);
+    dispstr = _sprintf("T %02d", _current_timer);
+  } else dispstr = _sprintf("%04d", _current_timer);
 
-  display_chars2(0, 1, dispstr, ALIGN_CENTER, SEG_SET);
+  display_chars2(0, 1, dispstr, ALIGN_CENTER, SEG_ON);
 
   // it is up to the code that sets the interval to ensure hours is 
   // never greater than 9. It is also up to the code that updates
@@ -77,123 +140,136 @@ void draw_current_timer(void) {
   uint8_t minutes = curtimer->remaining/60;
   uint8_t seconds = curtimer->remaining%60;
 
-  dispstr = _sprintf("%1d%02d%02d",hours,minutes,seconds);
+  dispstr = _sprintf("%1d", hours);
+  display_chars2(0, 2, dispstr, ALIGN_LEFT, SEG_ON);
 
-  display_chars2(0, 1, dispstr, ALIGN_CENTER, SEG_SET);
+  dispstr = _sprintf("%02d", minutes);
+  display_chars2(0, 2, dispstr, ALIGN_CENTER, SEG_ON);
+
+  dispstr = _sprintf("%02d", seconds);
+  display_chars2(0, 2, dispstr, ALIGN_RIGHT, SEG_ON);
+
+  enum display_segstate colstate = SEG_ON;
+  if (curtimer->running) colstate |= BLINK_ON;
+  else colstate |= BLINK_OFF;
+
+ display_symbol(0, LCD_SEG_L2_COL0, colstate); 
+ display_symbol(0, LCD_SEG_L2_COL1, colstate); 
 }
 
-void timer_tick1second() {
+void timer_tick() {
   int idx;
   for (idx = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
-    Timer *t = _timers[idx];
+    Timer *t = _timers+idx;
     if (t->running) {
-      if (t->remaining) t->remaining -= 1;
-      else {
-        t->running = 0;
-        // alert here
+      t->ticks += 1;
+      if (t->ticks >= 20) {
+        t->ticks = 0;
+        if (t->remaining) t->remaining -= 1;
       }
+
+      // XXX no, this code isn't redundant. We want the alarm to go off
+      // as soon as it expires, not in the next second
+      if (t->remaining == 0) t->running = 0;
     }
+  }
+
+  if (number_of_expired_timers()) {
+    if (_alarm_ticks == 0xff) _alarm_ticks = 0;
+    else _alarm_ticks = (_alarm_ticks+1)%20;
+
+    if (_alarm_ticks == 0) buzzer_play(_alarm_notes);
+
+    if (_module_state != MODULE_BACKGROUND) {
+      show_expired_timer();
+
+      // now flash all the things to draw attension
+      display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_ON);
+      display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_ON);
+    }
+  } else if (number_of_running_timers() == 0) {
+    _module_state = MODULE_STOPPED;
+    _alarm_ticks = 0xff;
+    display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_OFF);
+    display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_OFF);
+    draw_current_timer();
+  } else {
+    _module_state = MODULE_RUNNING; 
+    draw_current_timer();
   }
 }
 
-/* Activation of the module */
-static void stopwatch_activated() {
-	display_symbol(0, LCD_SEG_L2_COL0, SEG_ON|BLINK_ON);
-	display_symbol(0, LCD_SEG_L2_COL1, SEG_ON|BLINK_ON);
-	if (sSwatch_conf.state == SWATCH_MODE_BACKGROUND) {
-		sSwatch_conf.state = SWATCH_MODE_ON;
-		return;
-	}
+void timer_activate() {
+  sys_messagebus_register(&timer_tick, SYS_MSG_TIMER_20HZ);
 
-	sys_messagebus_register(&stopwatch_event, SYS_MSG_TIMER_20HZ);
-	drawStopWatchScreen();
+  // if we were in the background, bring ourselves into the running
+  // state
+  if (_module_state == MODULE_BACKGROUND) {
+    _module_state = MODULE_RUNNING;
+  } else _module_state = MODULE_STOPPED;
+
+  draw_current_timer();
 }
 
-/* Deactivation of the module */
-static void stopwatch_deactivated() {
-	/* clean up screen */
-	display_clear(0, 1);
-	display_clear(0, 2);
-	if (sSwatch_conf.state == SWATCH_MODE_ON) {
-		sSwatch_conf.state = SWATCH_MODE_BACKGROUND;
-		return;
-	} else {
-
-		sys_messagebus_unregister(&stopwatch_event);
-		display_symbol(0, LCD_ICON_STOPWATCH, SEG_OFF);
-		display_symbol(0, LCD_SEG_L2_COL0, SEG_OFF);
-		display_symbol(0, LCD_SEG_L2_COL1, SEG_OFF);
+void timer_deactivated() {
+	display_clear(0, 0);
+	if (_module_state == MODULE_RUNNING) _module_state = MODULE_BACKGROUND;
+  else {
+    _module_state = MODULE_STOPPED;
+		sys_messagebus_unregister(&timer_tick);
 	}
 }
 
-static void down_press() {
-	if (sSwatch_conf.state == SWATCH_MODE_ON) {
-		increment_lap_stopwatch();
-
-	} else if (sSwatch_conf.laps != 0) {
-		if (sSwatch_conf.lap_act > sSwatch_conf.laps - 1) {
-			sSwatch_conf.lap_act = 0;
-		} else if (sSwatch_conf.lap_act > 0) {
-			sSwatch_conf.lap_act--;
-		}
-		drawStopWatchScreen();
-	}
-}
-static void up_press() {
-	if (sSwatch_conf.state == SWATCH_MODE_ON) {
-		increment_lap_stopwatch();
-	} else if (sSwatch_conf.laps != 0) {
-		if (sSwatch_conf.lap_act < sSwatch_conf.laps - 1) {
-			sSwatch_conf.lap_act++;
-		} else if (sSwatch_conf.lap_act > sSwatch_conf.laps - 1) {
-			sSwatch_conf.lap_act = sSwatch_conf.laps - 1;
-		}
-		drawStopWatchScreen();
-	}
-}
-static void num_press() {
-	if (sSwatch_conf.state == SWATCH_MODE_OFF) {
-		sSwatch_conf.state = SWATCH_MODE_ON;
-		sSwatch_conf.lap_act = SW_COUNTING;
-	} else {
-		sSwatch_conf.state = SWATCH_MODE_OFF;
-	}
-	drawStopWatchScreen();
+void down_press() {
+  if (_module_state == MODULE_STOPPED) {
+    if (_current_timer == 0) _current_timer = CONFIG_MOD_TIMER_COUNT-1;
+    else _current_timer -= 1;
+    draw_current_timer();
+  }
 }
 
-static void num_long_pressed() {
+void up_press() {
+  if (_module_state == MODULE_STOPPED) {
+    if (_current_timer == CONFIG_MOD_TIMER_COUNT-1) _current_timer = 0;
+    else _current_timer += 1;
+    draw_current_timer();
+  }
+}
 
-	if (sSwatch_conf.state == SWATCH_MODE_OFF) {
-		clear_stopwatch();
-		drawStopWatchScreen();
+void num_press() {
+  Timer *curtimer = _timers + _current_timer;
+
+  // if there is time left on the current timer, then start/stop it
+  if (timer_is_expired(curtimer)) timer_reset(curtimer);
+  else curtimer->running = !curtimer->running;
+}
+
+void num_long_pressed() {
+  Timer *curtimer = _timers + _current_timer;
+  if (curtimer->running == 0) {
+    timer_reset(curtimer);
+		draw_current_timer();
 	}
 }
 
-void mod_stopwatch_init(void) {
-	sSwatch_conf.state = SWATCH_MODE_OFF;
-	clear_stopwatch();
+void mod_timer_init(void) {
+  _module_state = MODULE_STOPPED;
+  // XXX we should if possible read timers configs out of simulated
+  // EEPROM, otherwise the timers are wiped each timer we change the
+  // batteries
+  memset(_timers, 0, sizeof(_timers));
+  _current_timer = 0;
 
-	menu_add_entry("ST WH", &up_press, &down_press, &num_press, NULL,
-			&num_long_pressed, NULL, &stopwatch_activated,
-			&stopwatch_deactivated);
-}
-
-/*
- * Helper Functions
- */
-
-void clear_stopwatch(void) {
-	sSwatch_time[SW_COUNTING].cents = 0;
-	sSwatch_time[SW_COUNTING].hours = 0;
-	sSwatch_time[SW_COUNTING].minutes = 0;
-	sSwatch_time[SW_COUNTING].seconds = 0;
-	sSwatch_conf.laps = 0;
-	sSwatch_conf.lap_act = SW_COUNTING;
-}
-
-void increment_lap_stopwatch(void) {
-	sSwatch_time[sSwatch_conf.laps] = sSwatch_time[SW_COUNTING];
-	if (sSwatch_conf.laps < (MAX_LAPS - 1)) {
-		sSwatch_conf.laps++;
-	}
+	menu_add_entry("TIMER", 
+	    &up_press, 
+	    &down_press, 
+	    &num_press, 
+	    NULL,
+			&num_long_pressed, 
+			NULL, 
+			&timer_activate,
+			&timer_deactivated);
+	// XXX DEBUG
+	_timers[0].interval = 10;
+	_timers[0].remaining = 10;
 }
