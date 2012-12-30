@@ -283,6 +283,7 @@ static void menumode_enable(void)
 	menumode.enabled = 1;
 
 	/* show MENU in the first line */
+	display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_OFF);
 	display_chars(0, LCD_SEG_L1_3_0, "MENU", SEG_SET);
 
 	/* turn on up/down symbols */
