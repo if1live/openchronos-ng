@@ -352,8 +352,10 @@ void display_symbol(
   Note that if field width is not given, then it is assumed to be 3.
 
   Only a subset of the usual format specifiers are supported. Namely d, u and x.
-  In addition field width and 0 padding are also supported.
+  In addition field width, sign, and 0 padding flags are also supported.
 
+  Note that field width is the **maximum** field width, not *minimum*
+  field width as in cstdlib.
 
   Example:
   
@@ -363,7 +365,9 @@ void display_symbol(
 
       _sprintf("%03d", -48);    // returns "-048"
 
-      _sprintf("%03d", 48);     // returns " 048"
+      _sprintf("%+03d", 48);     // returns "+048"
+
+      _sprintf("%03d", 48);     // returns "048"
 
       _sprintf("0x%02", 0xff);  // returns "0xff"
 
