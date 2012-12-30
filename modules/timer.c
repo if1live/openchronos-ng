@@ -94,6 +94,47 @@ static EditTimer _editTimer;
 #define CURTIMERPTR   (_timers+_current_timer)
 
 static void draw_current_timer();
+  
+// ------------------------------------------------------------------
+// Timer Operation
+// ------------------------------------------------------------------
+static uint8_t timer_is_expired(Timer *tp) {
+  return tp->interval && tp->remaining == 0;
+}
+
+static uint8_t number_of_running_timers() {
+  uint8_t idx;
+  uint8_t cnt;
+
+  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    cnt += _timers[idx].running;
+  }
+
+  return cnt;
+}
+
+static uint8_t number_of_expired_timers() {
+  uint8_t idx;
+  uint8_t cnt;
+
+  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    if (timer_is_expired(_timers+idx)) cnt += 1;
+  }
+
+  return cnt;
+}
+
+// resets a timer so it can start counting down again
+static void timer_reset(Timer *tp) {
+  tp->remaining = tp->interval;
+  tp->ticks = 0;
+}
+
+// sets a new timer interval
+static void timer_set(Timer *t, uint16_t interval) {
+  t->interval = interval;
+  timer_reset(t);
+}
 
 // ------------------------------------------------------------------
 // Edit Mode 
@@ -101,18 +142,22 @@ static void draw_current_timer();
 
 static void setup_edit_timer() {
   Timer *curtimer = CURTIMERPTR;
-  _editTimer.hours = GET_HOURS(curtimer->interval);
-  _editTimer.minutes = GET_MINUTES(curtimer->interval);
-  _editTimer.seconds = GET_SECS(curtimer->interval);
+
+  // XXX this is a bit of design decision... we can choose to edit
+  // the timer's interval, or its current value.. I am choosing the
+  // edit the current value because it is less surprising to the user,
+  // and because you can always reset then edit to edit the interval.
+  _editTimer.hours = GET_HOURS(curtimer->remaining);
+  _editTimer.minutes = GET_MINUTES(curtimer->remaining);
+  _editTimer.seconds = GET_SECS(curtimer->remaining);
 }
 
 static void save_edit_timer() {
-  Timer *curtimer = CURTIMERPTR;
+  uint16_t interval =  _editTimer.hours * SECS_PER_HOUR;
+  interval += _editTimer.minutes * SECS_PER_MINUTE;
+  interval += _editTimer.seconds;
 
-  curtimer->interval = _editTimer.hours * SECS_PER_HOUR;
-  curtimer->interval += _editTimer.minutes * SECS_PER_MINUTE;
-  curtimer->interval += _editTimer.seconds;
-  curtimer->remaining = curtimer->interval;
+  timer_set(CURTIMERPTR, interval);
 }
 
 static void edit_h_sel(void) {
@@ -158,10 +203,11 @@ static void edit_save() {
   save_edit_timer();
   _module_state = MODULE_STOPPED;
 }
-  
-// ------------------------------------------------------------------
-// Timer Operation
-// ------------------------------------------------------------------
+
+// --------------------------------------------------------------------
+// Module Operation
+// -------------------------------------------------------------------
+
 // draws the current timer to the screen
 static void draw_current_timer() {
   // do not draw if we are in background
@@ -201,37 +247,6 @@ static void draw_current_timer() {
 
  display_symbol(0, LCD_SEG_L2_COL0, colstate); 
  display_symbol(0, LCD_SEG_L2_COL1, colstate); 
-}
-
-static uint8_t timer_is_expired(Timer *tp) {
-  return tp->interval && tp->remaining == 0;
-}
-
-static void timer_reset(Timer *tp) {
-  tp->remaining = tp->interval;
-  tp->ticks = 0;
-}
-
-static uint8_t number_of_running_timers() {
-  uint8_t idx;
-  uint8_t cnt;
-
-  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
-    cnt += _timers[idx].running;
-  }
-
-  return cnt;
-}
-
-static uint8_t number_of_expired_timers() {
-  uint8_t idx;
-  uint8_t cnt;
-
-  for (idx = cnt = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
-    if (timer_is_expired(_timers+idx)) cnt += 1;
-  }
-
-  return cnt;
 }
 
 // Updates _current_timer to the highest numbered expired timer, if
@@ -376,7 +391,14 @@ void mod_timer_init(void) {
 			NULL, 
 			&timer_activate,
 			&timer_deactivated);
-	// XXX DEBUG
-	_timers[0].interval = 10;
-	_timers[0].remaining = 10;
+
+#ifdef CONFIG_MOD_TIMER_PRESETS
+  uint8_t presets[] = {5, 15, 20, 30, 60};
+  uint8_t idx;
+  for (idx = 0; idx < sizeof(presets) && 
+                idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
+    timer_set(_timers+idx, presets[idx]*SECS_PER_MINUTE);
+  }
+#endif
+
 }
