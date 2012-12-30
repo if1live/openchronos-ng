@@ -531,20 +531,25 @@ char *_sprintf(const char *fmt, int16_t n) {
 		}
 		i++;
 
-    // XXX I know the docs says you can't pass in %u etc, and you must
-    // specified the width... but screw it. Default to 3 digits because
-    // that is the minimum display width taking into account a sign
-    // digit
-		int8_t digits = 3;
+		int digits = 0;
 		int8_t zpad = ' ';
+		int8_t showsign = 0;
+
 		/* parse int substitution */
 		while (fmt[i] != 'd' && fmt[i] != 'u' && fmt[i] != 'x') {
 			if (fmt[i] == '0')
 				zpad = '0';
-			else
+			else if (fmt[i] == '+') 
+			  showsign = 1;
+      else
 				digits = fmt[i] - '0';
 			i++;
 		}
+
+    // XXX the doc says we must specify the field width, so if digits
+    // is zero here, return "P". Why P? Because you would never get P
+    // in any of the conversions. 
+    if (digits == 0) return "P";
 
 		/* show sign */
 		if (fmt[i] == 'd') {
@@ -552,7 +557,8 @@ char *_sprintf(const char *fmt, int16_t n) {
 				sprintf_str[j++] = '-';
 				n = (~n) + 1;
 			} else
-				sprintf_str[j++] = ' ';
+			  if (showsign)
+				  sprintf_str[j++] = '+';
 		}
 
 		j += digits - 1;
@@ -580,6 +586,7 @@ char *_sprintf(const char *fmt, int16_t n) {
 		}
 
 		j = j1;
+		i++;
 	}
 
 	return sprintf_str;
@@ -726,10 +733,6 @@ void display_chars2(uint8_t scr_nr,
     // truncation
     startseg += lendiff/2;
   }
-
-  // XXX I would much rather we clear the line each time, but 
-  // display_chars doesn't do that, so we don't do it either.
-  //display_clear(scr_nr, line);
 
   uint8_t idx = 0;
   for (; idx < len; ++idx) {
