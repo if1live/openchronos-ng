@@ -101,3 +101,8 @@ void buzzer_play(note *notes)
 	/* Stop buzzer */
 	buzzer_stop();
 }
+
+void buzzer_play_alert1() {
+   note alert[] = {0x1908, 0x1000, 0x1908, 0x000F};
+   buzzer_play(alert);
+}

@@ -12,19 +12,17 @@
 #define BUZZER_H_
 
 /*!
- * \brief Note type.
- * \details This is a type representing a note. It is composed by:
- * - The first 4 MSB represent the pitch
- * - The next 2 bits represent the octave
- * - The following 10 bits are the duration in ms of the note.
+ * Note type.
+ * This is a type representing a note. It is composed by:
+ *     
+ *     MSB [duration:10][octave:2][pitch:4] LSB
  *
  * There are two "meta" notes:
  * - The note xxx0 represents no tone (a rest).
- * - The note xxxF represents the "stop note" marking the \
- *   end of a note sequence.
+ * - The note xxxF represents the "stop note" marking the end of a note sequence.
  *
- * \note The stop note is needed in the play loop to determine \
- * when to end the melody.
+ * A stop note is **required**, since the length of the notes array is
+ * not known.
  */
 typedef uint16_t note;
 
@@ -38,5 +36,11 @@ void buzzer_init(void);
  * \param notes An array of notes to play.
  */
 void buzzer_play(note *notes);
+
+/**
+ * Plays a short alert consisting of 2 beeps, suitable for alerts.
+ * Can be called once a second.
+ */ 
+void buzzer_play_alert1();
 
 #endif /*BUZZER_H_*/
