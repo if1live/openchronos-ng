@@ -46,7 +46,7 @@ typedef enum timer_state {
   MODULE_BACKGROUND,
 
   // current timer is being edited
-  MODULE_EDIT,
+  MODULE_EDITING,
 } ModuleState;
 
 typedef struct {
@@ -72,7 +72,136 @@ static uint8_t _current_timer;
 
 static uint8_t _alarm_ticks = 0xff;
 
+// it is much easier to manipulate the interval when separated into
+// hours, minutes and seconds, and do the conversion to interval in
+// seconds at the end of editing
+typedef struct {
+  uint8_t hours;
+  uint8_t minutes;
+  uint8_t seconds;
+} EditTimer;
+
+static EditTimer _editTimer;
+
+#define SECS_PER_MINUTE   (60)
+#define MINUTES_PER_HOUR  (60)
+#define SECS_PER_HOUR     (SECS_PER_MINUTE*MINUTES_PER_HOUR)
+
+#define GET_HOURS(secs)   (secs/SECS_PER_HOUR)
+#define GET_MINUTES(secs) ((secs/SECS_PER_MINUTE)%MINUTES_PER_HOUR)
+#define GET_SECS(secs)    (secs%SECS_PER_MINUTE)
+
+#define CURTIMERPTR   (_timers+_current_timer)
+
 static void draw_current_timer();
+
+// ------------------------------------------------------------------
+// Edit Mode 
+// ------------------------------------------------------------------
+
+static void setup_edit_timer() {
+  Timer *curtimer = CURTIMERPTR;
+  _editTimer.hours = GET_HOURS(curtimer->interval);
+  _editTimer.minutes = GET_MINUTES(curtimer->interval);
+  _editTimer.seconds = GET_SECS(curtimer->interval);
+}
+
+static void save_edit_timer() {
+  Timer *curtimer = CURTIMERPTR;
+
+  curtimer->interval = _editTimer.hours * SECS_PER_HOUR;
+  curtimer->interval += _editTimer.minutes * SECS_PER_MINUTE;
+  curtimer->interval += _editTimer.seconds;
+  curtimer->remaining = curtimer->interval;
+}
+
+static void edit_h_sel(void) {
+  display_symbol(0, LCD_SEG_L2_4, BLINK_ON);
+}
+
+static void edit_h_desel(void) {
+  display_symbol(0, LCD_SEG_L2_4, BLINK_OFF);
+}
+
+static void edit_h_set(int8_t step) {
+  helpers_loop(&_editTimer.hours, 0, 9, step);
+  save_edit_timer();
+}
+
+static void edit_mm_sel(void) {
+  display_chars(0, LCD_SEG_L2_3_2, NULL, BLINK_ON);
+}
+
+static void edit_mm_desel(void) {
+  display_chars(0, LCD_SEG_L2_3_2, NULL, BLINK_OFF);
+}
+
+static void edit_mm_set(int8_t step) {
+  helpers_loop(&_editTimer.minutes, 0, 59, step);
+  save_edit_timer();
+}
+
+static void edit_ss_sel(void) {
+  display_chars(0, LCD_SEG_L2_1_0, NULL, BLINK_ON);
+}
+
+static void edit_ss_desel(void) {
+  display_chars(0, LCD_SEG_L2_1_0, NULL, BLINK_OFF);
+}
+
+static void edit_ss_set(int8_t step) {
+  helpers_loop(&_editTimer.seconds, 0, 59, step);
+  save_edit_timer();
+}
+
+static void edit_save() {
+  save_edit_timer();
+  _module_state = MODULE_STOPPED;
+}
+  
+// ------------------------------------------------------------------
+// Timer Operation
+// ------------------------------------------------------------------
+// draws the current timer to the screen
+static void draw_current_timer() {
+  // do not draw if we are in background
+  if (_module_state == MODULE_BACKGROUND) return;
+  
+  display_clear(0, 0);
+
+  Timer *curtimer = CURTIMERPTR;
+
+  char *dispstr = NULL;
+  if (_current_timer < 10) dispstr = _sprintf("TMR%1d", _current_timer);
+  else if (_current_timer < 100) {
+    dispstr = _sprintf("T %02d", _current_timer);
+  } else dispstr = _sprintf("%04d", _current_timer);
+
+  display_chars2(0, 1, dispstr, ALIGN_CENTER, SEG_ON);
+
+  // it is up to the code that sets the interval to ensure hours is 
+  // never greater than 9. It is also up to the code that updates
+  // the timers to ensure that remaining never overflows
+  uint16_t hours = GET_HOURS(curtimer->remaining);
+  uint8_t minutes = GET_MINUTES(curtimer->remaining);
+  uint8_t seconds = GET_SECS(curtimer->remaining);
+
+  dispstr = _sprintf("%1d", hours);
+  display_chars2(0, 2, dispstr, ALIGN_LEFT, SEG_ON);
+
+  dispstr = _sprintf("%02d", minutes);
+  display_chars2(0, 2, dispstr, ALIGN_CENTER, SEG_ON);
+
+  dispstr = _sprintf("%02d", seconds);
+  display_chars2(0, 2, dispstr, ALIGN_RIGHT, SEG_ON);
+
+  enum display_segstate colstate = SEG_ON;
+  if (curtimer->running) colstate |= BLINK_ON;
+  else colstate |= BLINK_OFF;
+
+ display_symbol(0, LCD_SEG_L2_COL0, colstate); 
+ display_symbol(0, LCD_SEG_L2_COL1, colstate); 
+}
 
 static uint8_t timer_is_expired(Timer *tp) {
   return tp->interval && tp->remaining == 0;
@@ -115,47 +244,6 @@ static void show_expired_timer() {
   draw_current_timer();
 }
 
-// draws the current timer to the screen
-static void draw_current_timer() {
-  // do not draw if we are in background
-  if (_module_state == MODULE_BACKGROUND) return;
-  
-  display_clear(0, 0);
-
-  Timer *curtimer = _timers+_current_timer;
-
-  char *dispstr = NULL;
-  if (_current_timer < 10) dispstr = _sprintf("TMR%1d", _current_timer);
-  else if (_current_timer < 100) {
-    dispstr = _sprintf("T %02d", _current_timer);
-  } else dispstr = _sprintf("%04d", _current_timer);
-
-  display_chars2(0, 1, dispstr, ALIGN_CENTER, SEG_ON);
-
-  // it is up to the code that sets the interval to ensure hours is 
-  // never greater than 9. It is also up to the code that updates
-  // the timers to ensure that remaining never overflows
-  uint16_t hours = curtimer->remaining/3600;
-  uint8_t minutes = curtimer->remaining/60;
-  uint8_t seconds = curtimer->remaining%60;
-
-  dispstr = _sprintf("%1d", hours);
-  display_chars2(0, 2, dispstr, ALIGN_LEFT, SEG_ON);
-
-  dispstr = _sprintf("%02d", minutes);
-  display_chars2(0, 2, dispstr, ALIGN_CENTER, SEG_ON);
-
-  dispstr = _sprintf("%02d", seconds);
-  display_chars2(0, 2, dispstr, ALIGN_RIGHT, SEG_ON);
-
-  enum display_segstate colstate = SEG_ON;
-  if (curtimer->running) colstate |= BLINK_ON;
-  else colstate |= BLINK_OFF;
-
- display_symbol(0, LCD_SEG_L2_COL0, colstate); 
- display_symbol(0, LCD_SEG_L2_COL1, colstate); 
-}
-
 void timer_tick() {
   int idx;
   for (idx = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
@@ -173,11 +261,12 @@ void timer_tick() {
     }
   }
 
-  if (number_of_expired_timers()) {
+  if (_module_state == MODULE_EDITING) draw_current_timer();
+  else if (number_of_expired_timers()) {
     if (_alarm_ticks == 0xff) _alarm_ticks = 0;
     else _alarm_ticks = (_alarm_ticks+1)%20;
 
-    if (_alarm_ticks == 0) buzzer_play_alert1();
+    if (_alarm_ticks == 0) buzzer_play_alert2x();
 
     if (_module_state != MODULE_BACKGROUND) {
       show_expired_timer();
@@ -236,19 +325,38 @@ void up_press() {
 }
 
 void num_press() {
-  Timer *curtimer = _timers + _current_timer;
+  if (_module_state != MODULE_EDITING) {
+    Timer *curtimer = _timers + _current_timer;
 
-  // if there is time left on the current timer, then start/stop it
-  if (timer_is_expired(curtimer)) timer_reset(curtimer);
-  else curtimer->running = !curtimer->running;
+    // if the timer is expired, reset it
+    if (timer_is_expired(curtimer)) timer_reset(curtimer);
+    // otherwise if it has a non-zero interval and not expired, start
+    // or stop it
+    else if (curtimer->interval) curtimer->running = !curtimer->running;
+  }
 }
 
-void num_long_pressed() {
+void num_long_press() {
   Timer *curtimer = _timers + _current_timer;
   if (curtimer->running == 0) {
     timer_reset(curtimer);
 		draw_current_timer();
 	}
+}
+
+void star_long_press() {
+  static struct menu_editmode_item edit_items[] = {
+    {&edit_h_sel, &edit_h_desel, &edit_h_set},
+    {&edit_mm_sel, &edit_mm_desel, &edit_mm_set},
+    {&edit_ss_sel, &edit_ss_desel, &edit_ss_set},
+    {NULL},
+  };
+
+  if (_module_state == MODULE_STOPPED) {
+    _module_state = MODULE_EDITING;
+    setup_edit_timer();
+    menu_editmode_start(&edit_save, edit_items);
+  }
 }
 
 void mod_timer_init(void) {
@@ -263,8 +371,8 @@ void mod_timer_init(void) {
 	    &up_press, 
 	    &down_press, 
 	    &num_press, 
-	    NULL,
-			&num_long_pressed, 
+	    &star_long_press,
+			&num_long_press, 
 			NULL, 
 			&timer_activate,
 			&timer_deactivated);
