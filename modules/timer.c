@@ -70,7 +70,6 @@ static Timer _timers[CONFIG_MOD_TIMER_COUNT];
 // index of current timer
 static uint8_t _current_timer;
 
-static note _alarm_notes[] = {0x1908, 0x1000, 0x1908, 0x000F};
 static uint8_t _alarm_ticks = 0xff;
 
 static void draw_current_timer();
@@ -178,7 +177,7 @@ void timer_tick() {
     if (_alarm_ticks == 0xff) _alarm_ticks = 0;
     else _alarm_ticks = (_alarm_ticks+1)%20;
 
-    if (_alarm_ticks == 0) buzzer_play(_alarm_notes);
+    if (_alarm_ticks == 0) buzzer_play_alert1();
 
     if (_module_state != MODULE_BACKGROUND) {
       show_expired_timer();
