@@ -201,7 +201,8 @@ static void edit_ss_set(int8_t step) {
 
 static void edit_save() {
   save_edit_timer();
-  _module_state = MODULE_STOPPED;
+  if (number_of_running_timers()) _module_state = MODULE_RUNNING;
+  else _module_state = MODULE_STOPPED;
 }
 
 // --------------------------------------------------------------------
@@ -256,7 +257,7 @@ static void show_expired_timer() {
   for (idx = 0; idx < CONFIG_MOD_TIMER_COUNT; ++idx) {
     if (timer_is_expired(_timers+idx)) _current_timer = idx;
   }
-  draw_current_timer();
+  draw_current_timer();  
 }
 
 void timer_tick() {
@@ -276,40 +277,82 @@ void timer_tick() {
     }
   }
 
-  if (_module_state == MODULE_EDITING) draw_current_timer();
-  else if (number_of_expired_timers()) {
-    if (_alarm_ticks == 0xff) _alarm_ticks = 0;
-    else _alarm_ticks = (_alarm_ticks+1)%20;
-
-    if (_alarm_ticks == 0) buzzer_play_alert2x();
-
-    if (_module_state != MODULE_BACKGROUND) {
-      show_expired_timer();
-
-      // now flash all the things to draw attension
+  // update module state and perform transition actions
+  if (_module_state == MODULE_RUNNING) {
+    if (number_of_running_timers() == 0 && 
+        number_of_expired_timers() == 0) { 
+      _module_state = MODULE_STOPPED;
+    }
+  } else if (_module_state == MODULE_STOPPED) {
+    if (number_of_running_timers()) _module_state = MODULE_RUNNING;
+  } else if (_module_state == MODULE_EDITING) {
+    // no state transition
+  } else if (_module_state == MODULE_BACKGROUND) {
+    // no state transition
+  }
+  
+  // act on current state
+  if (_module_state == MODULE_RUNNING) {
+    if (number_of_expired_timers()) {
       display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_ON);
       display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_ON);
+      show_expired_timer();
+    } else {
+      display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_OFF);
+      display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_OFF);
+      draw_current_timer();
     }
-  } else if (number_of_running_timers() == 0) {
-    _module_state = MODULE_STOPPED;
+  } else if (_module_state == MODULE_STOPPED) {
     _alarm_ticks = 0xff;
     display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_OFF);
     display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_OFF);
     draw_current_timer();
-  } else {
-    _module_state = MODULE_RUNNING; 
+  } else if (_module_state == MODULE_EDITING) {
     draw_current_timer();
+  } else if (_module_state == MODULE_BACKGROUND) {
+    // do nothing
+  }
+
+
+
+    
+  if (_module_state != MODULE_BACKGROUND) {
+    
+    // if we are not in the background, then we are always updating
+    // the display, either with the current timer, or with the
+    // expired timer
+    if (number_of_expired_timers()) {
+      show_expired_timer();
+      // now flash all the things to draw attension
+      display_chars(0, LCD_SEG_L1_3_0, NULL, BLINK_ON);
+      display_chars(0, LCD_SEG_L2_4_0, NULL, BLINK_ON);
+    } else draw_current_timer();
+
+    if (_module_state == MODULE_STOPPED) {
+      _alarm_ticks = 0xff;
+    }
+  }
+  
+  // we always provide audio alert to timer expiration regardless of
+  // state. This is after all our most important function
+  if (number_of_expired_timers()) {
+      if (_alarm_ticks == 0xff) _alarm_ticks = 0;
+      else _alarm_ticks = (_alarm_ticks+1)%20;
+
+      if (_alarm_ticks == 0) buzzer_play_alert2x();
   }
 }
 
 void timer_activate() {
-  sys_messagebus_register(&timer_tick, SYS_MSG_TIMER_20HZ);
 
   // if we were in the background, bring ourselves into the running
   // state
   if (_module_state == MODULE_BACKGROUND) {
     _module_state = MODULE_RUNNING;
-  } else _module_state = MODULE_STOPPED;
+  } else {
+    _module_state = MODULE_STOPPED;
+    sys_messagebus_register(&timer_tick, SYS_MSG_TIMER_20HZ);
+  }
 
   draw_current_timer();
 }
@@ -324,31 +367,23 @@ void timer_deactivated() {
 }
 
 void down_press() {
-  if (_module_state == MODULE_STOPPED) {
-    if (_current_timer == 0) _current_timer = CONFIG_MOD_TIMER_COUNT-1;
-    else _current_timer -= 1;
-    draw_current_timer();
-  }
+  if (_current_timer == 0) _current_timer = CONFIG_MOD_TIMER_COUNT-1;
+  else _current_timer -= 1;
 }
 
 void up_press() {
-  if (_module_state == MODULE_STOPPED) {
-    if (_current_timer == CONFIG_MOD_TIMER_COUNT-1) _current_timer = 0;
-    else _current_timer += 1;
-    draw_current_timer();
-  }
+  if (_current_timer == CONFIG_MOD_TIMER_COUNT-1) _current_timer = 0;
+  else _current_timer += 1;
 }
 
 void num_press() {
-  if (_module_state != MODULE_EDITING) {
-    Timer *curtimer = _timers + _current_timer;
+  Timer *curtimer = _timers + _current_timer;
 
-    // if the timer is expired, reset it
-    if (timer_is_expired(curtimer)) timer_reset(curtimer);
-    // otherwise if it has a non-zero interval and not expired, start
-    // or stop it
-    else if (curtimer->interval) curtimer->running = !curtimer->running;
-  }
+  // if the timer is expired, reset it
+  if (timer_is_expired(curtimer)) timer_reset(curtimer);
+  // otherwise if it has a non-zero interval and not expired, start
+  // or stop it
+  else if (curtimer->interval) curtimer->running = !curtimer->running;
 }
 
 void num_long_press() {
@@ -361,17 +396,15 @@ void num_long_press() {
 
 void star_long_press() {
   static struct menu_editmode_item edit_items[] = {
-    {&edit_h_sel, &edit_h_desel, &edit_h_set},
-    {&edit_mm_sel, &edit_mm_desel, &edit_mm_set},
     {&edit_ss_sel, &edit_ss_desel, &edit_ss_set},
+    {&edit_mm_sel, &edit_mm_desel, &edit_mm_set},
+    {&edit_h_sel, &edit_h_desel, &edit_h_set},
     {NULL},
   };
 
-  if (_module_state == MODULE_STOPPED) {
-    _module_state = MODULE_EDITING;
-    setup_edit_timer();
-    menu_editmode_start(&edit_save, edit_items);
-  }
+  _module_state = MODULE_EDITING;
+  setup_edit_timer();
+  menu_editmode_start(&edit_save, edit_items);
 }
 
 void mod_timer_init(void) {
