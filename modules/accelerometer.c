@@ -37,7 +37,7 @@
  *  on the bottom display. Press # to get back to MODE selection.</li>
  * </lu>
  */
-#include <openchronos.h>
+#include <core/openchronos.h>
 
 /* driver list */
 #include <drivers/display.h>

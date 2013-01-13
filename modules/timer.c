@@ -27,9 +27,9 @@
  *
  */
 
-#include <string.h>
+#include <core/openchronos.h>
 
-#include <openchronos.h>
+#include <string.h>
 
 #include <drivers/display.h>
 #include <drivers/buzzer.h>

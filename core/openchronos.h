@@ -77,6 +77,8 @@ enum sys_message
 	SYS_MSG_BATT		= BITC, /**<  Battery event from the hardware Voltage sensor. */
 };
 
+#define SYS_MSG_PRESENT(a,b) ((a&b)==b)
+
 /// Linked list of nodes listening to the message bus.
 struct sys_messagebus
 {

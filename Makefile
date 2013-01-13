@@ -158,7 +158,7 @@ $(OBJS): config/rtca_now.h
 
 $(OUTDIR)/openchronos.elf: $(OUTDIR)/core/even_in_range.o $(OBJS)
 	@printf "\n%-${PAD}s" "Building $@ as target $(TARGET)..."
-	@$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ $+ 2>> tmp.log || touch tmp.errors
+	@$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -o "$@" $+ 2>> tmp.log || touch tmp.errors
 	$(CHECK_ERRORS)
 	@rm -f output.map	
 
