@@ -40,11 +40,11 @@
 // Include section
 
 // system
-#include <openchronos.h>
+#include <core/openchronos.h>
 
 // driver
 #include "vti_ps.h"
-//#include "timer.h"
+#include "timer.h"
 #ifdef CONFIG_FIXEDPOINT_MATH
 #include "dsp.h"
 #endif
@@ -100,6 +100,7 @@ void ps_init(void)
 
 	PS_INT_DIR &= ~PS_INT_PIN;            	// DRDY is input
 	PS_INT_IES &= ~PS_INT_PIN;				// Interrupt on DRDY rising edge
+	
 	PS_TWI_OUT |= PS_SCL_PIN + PS_SDA_PIN; 	// SCL and SDA are outputs by default
 	PS_TWI_DIR |= PS_SCL_PIN + PS_SDA_PIN; 	// SCL and SDA are outputs by default
 
@@ -108,12 +109,14 @@ void ps_init(void)
 
 	// 100msec delay to allow VDD stabilisation
 	//Timer0_A4_Delay(CONV_MS_TO_TICKS(100));
+	timer0_delay(100, LPM3_bits);
 
 	// Reset pressure sensor -> powerdown sensor
 	success = ps_write_register(0x06, 0x01);
 
 	// 100msec delay
 	//Timer0_A4_Delay(CONV_MS_TO_TICKS(100));
+	timer0_delay(100, LPM3_bits);
 
 	// Check if STATUS register BIT0 is cleared
 	status = ps_read_register(0x07, PS_TWI_8BIT_ACCESS);
@@ -136,10 +139,16 @@ void ps_init(void)
 // *************************************************************************************************
 void ps_start(void)
 {
+	// Enable DRDY IRQ on rising edge
+	PS_INT_IFG &= ~PS_INT_PIN;
+	PS_INT_IE |= PS_INT_PIN;
+	
 	// Start sampling data in ultra low power mode
 	ps_write_register(0x03, 0x0B);
+	
+	// 200ms needed to have a working interrupt
+	timer0_delay(200, LPM3_bits);
 }
-
 
 
 // *************************************************************************************************
@@ -150,10 +159,16 @@ void ps_start(void)
 // *************************************************************************************************
 void ps_stop(void)
 {
+	// Disable DRDY IRQ
+	PS_INT_IE  &= ~PS_INT_PIN;
+	PS_INT_IFG &= ~PS_INT_PIN;
+	
 	// Put sensor to standby
 	ps_write_register(0x03, 0x00);
+	
+	// 200ms needed ? FIXME
+	timer0_delay(200, LPM3_bits);
 }
-
 
 
 // *************************************************************************************************
@@ -410,7 +425,7 @@ uint32_t ps_get_pa(void)
 // @fn          ps_get_temp
 // @brief       Read out temperature.
 // @param       none
-// @return      uint16_t		13-bit temperature value in xx.x°K format
+// @return      uint16_t		13-bit temperature value in xx.x\B0K format
 // *************************************************************************************************
 uint16_t ps_get_temp(void)
 {
@@ -421,6 +436,9 @@ uint16_t ps_get_temp(void)
 
 	// Get 13 bit from TEMPOUT register
 	data = ps_read_register(0x81, PS_TWI_16BIT_ACCESS);
+
+	// FIXME This enable a working pressure sensor
+	//timer0_delay(1000, LPM3_bits);
 
 	// Convert negative temperatures
 	if ((data >> 13) & 0x1) {
@@ -434,7 +452,7 @@ uint16_t ps_get_temp(void)
 
 	temp = data / 2;
 
-	// Convert from °C to °K
+	// Convert from \B0C to \B0K
 	if (is_negative)	kelvin = 2732 - temp;
 	else				kelvin = temp + 2732;
 
@@ -473,35 +491,35 @@ int16_t conv_altitude_to_fraction(int16_t hh)
 	/*
 	The fixed part of the function of altitude can be broken into tabulated ranges
 	and/or interpolated according to a Taylor series expansion
-		 (1 - f) = (1 – h/H0)^b
-		         = 1 - h*b/H0 + h^2*b*(b–1)/2/H0^2 – h^3*b8(b–1)*(b-2)/6/H0^3 + …
+		 (1 - f) = (1 \96 h/H0)^b
+		         = 1 - h*b/H0 + h^2*b*(b\961)/2/H0^2 \96 h^3*b8(b\961)*(b-2)/6/H0^3 + \85
 	At low altitudes h/H0 << 1, so this series tends to converge rapidly and is
 	well-suited for fixed point implementation. With one or two additional terms
 	the series converges accurately over the range of interest so there is no need
 	for table interpolation. For the proposed fixed point implementation we rewrite
 	this expression a bit into
 		hh = b*h/H0
-		(1 - f) = (1 – h/H0)^b
-		        = 1 - hh*(1 – hh*(b–1)/2/b*(1 – hh*(b–2)/3/b*(...
+		(1 - f) = (1 \96 h/H0)^b
+		        = 1 - hh*(1 \96 hh*(b\961)/2/b*(1 \96 hh*(b\962)/3/b*(...
 	We stick to integer multiply and shift operations. Signed int16_t values can contain
-	values +/–2^15 and unsigned uint16_t values 0..2^16. In C multiplication amounts to
+	values +/\962^15 and unsigned uint16_t values 0..2^16. In C multiplication amounts to
 	expanding to int32_t, integer multiply and scaling back by a proper shift operation.
 
 	Given the above equations the natural unit of hh as the first order correction is
-	H0/b = 8434.48m. If we accept this as a maximum +/– range we can store int16_t hh in
+	H0/b = 8434.48m. If we accept this as a maximum +/\96 range we can store int16_t hh in
 	units of (H0/b)/2^15 = 0,26m which keeps the resolution at less than a foot.
 	 */
 	int16_t f, hf;
-	// f  = hh*(b – 4)/5/b, correction relevant above 3.5km:
+	// f  = hh*(b \96 4)/5/b, correction relevant above 3.5km:
 	// (Could be omitted, but it is relatively little work.)
 	f = mult_scale16(hh, 3132);
-	// f  = hh*(b – 3)/4/b*(1 - f), correction relevant above 1.3km:
+	// f  = hh*(b \96 3)/4/b*(1 - f), correction relevant above 1.3km:
 	hf = mult_scale16(hh, 7032);
 	f = hf - mult_scale15(hf, f);
-	// f = hh*(b – 2)/3/b*(1 - f), correction relevant above 300m:
+	// f = hh*(b \96 2)/3/b*(1 - f), correction relevant above 300m:
 	hf = mult_scale16(hh, 13533);
 	f = hf - mult_scale15(hf, f);
-	// f = hh*(b – 1)/2/b*(1 - f), correction relevant above 30m:
+	// f = hh*(b \96 1)/2/b*(1 - f), correction relevant above 30m:
 	hf = mult_scale16(hh, 26533);
 	f = hf - mult_scale15(hf, f);
 	// f = hh*(1 - f), the linear part:
@@ -518,7 +536,7 @@ int16_t conv_altitude_to_fraction(int16_t hh)
 //				Implemented straight from VTI reference code.
 // @param       int16_t		href	Reference height
 //				uint32_t		p_meas	Pressure (Pa)
-//				uint16_t		t_meas	Temperature (10*°K)
+//				uint16_t		t_meas	Temperature (10*\B0K)
 // @return     	none
 // *************************************************************************************************
 void update_pressure_table(int16_t href, uint32_t p_meas, uint16_t t_meas)
@@ -536,7 +554,7 @@ void update_pressure_table(int16_t href, uint32_t p_meas, uint16_t t_meas)
 	// Typecast arguments
 	volatile float fl_href 		= href;
 	volatile float fl_p_meas 	= (float)p_meas / 100;	// Convert from Pa to hPa
-	volatile float fl_t_meas	= (float)t_meas / 10;		// Convert from 10°K to 1°K
+	volatile float fl_t_meas	= (float)t_meas / 10;		// Convert from 10\B0K to 1\B0K
 
 	t0 = fl_t_meas + (0.0065 * fl_href);
 
@@ -588,7 +606,7 @@ void update_pressure_table(int16_t href, uint32_t p_meas, uint16_t t_meas)
 // @brief       Convert pressure (Pa) to altitude (m) using a conversion table
 //				Implemented straight from VTI reference code.
 // @param       uint32_t		p_meas	Pressure (Pa)
-//				uint16_t		t_meas	Temperature (10*°K)
+//				uint16_t		t_meas	Temperature (10*\B0K)
 // @return      int16_t				Altitude (m)
 // *************************************************************************************************
 int16_t conv_pa_to_meter(uint32_t p_meas, uint16_t t_meas)
@@ -604,7 +622,7 @@ int16_t conv_pa_to_meter(uint32_t p_meas, uint16_t t_meas)
 
 	// Typecast arguments
 	volatile float fl_p_meas = (float)p_meas / 100;	// Convert from Pa to hPa
-	volatile float fl_t_meas = (float)t_meas / 10;		// Convert from 10°K to 1°K
+	volatile float fl_t_meas = (float)t_meas / 10;		// Convert from 10\B0K to 1\B0K
 
 	for (i = 0; i <= 16; i++) {
 		if (p[i] < fl_p_meas) break;
@@ -636,7 +654,7 @@ int16_t conv_pa_to_meter(uint32_t p_meas, uint16_t t_meas)
 //				stored reference pressure at sea level and previous altitude estimate.
 //				Temperature info is ignored.
 // @param       uint32_t		p_meas	Pressure (Pa)
-// @param		uint16_t		t_meas	Temperature (10*°K) Ignored !!!
+// @param		uint16_t		t_meas	Temperature (10*\B0K) Ignored !!!
 // @return      Estimated altitude in user-selected unit (m or ft)
 //              (internally filtered, slightly sluggish).
 // *************************************************************************************************
@@ -644,7 +662,7 @@ int16_t conv_pa_to_altitude(uint32_t p_meas, uint16_t t_meas)
 {
 	/*
 	Assumption: fixed, linear T(h)
-	T = T0 – dTdh*h
+	T = T0 \96 dTdh*h
 	with
 	T0 = 288.15K (15C)
 	dTdh = 6.5mK/m
@@ -652,7 +670,7 @@ int16_t conv_pa_to_altitude(uint32_t p_meas, uint16_t t_meas)
 	Basic differential equation:
 		dh = -(R/G)*T(H)*dp/p
 	Solution:
-		H = H0*(1 – (p/pRef)^a)
+		H = H0*(1 \96 (p/pRef)^a)
 	with
 		H0 = T0/dTdh = 44330.77m
 		pRef = adjustable reference pressure at sea level (h=0).
@@ -670,12 +688,12 @@ int16_t conv_pa_to_altitude(uint32_t p_meas, uint16_t t_meas)
 
 	Evaluation of p(h) requires a more attractive multiplication by the
 	user-adjustable reference pressure pRef:
-		f =(1 – h/H0)^b
+		f =(1 \96 h/H0)^b
 		p = pRef*f
 	with
 		b = 1/a = G/(dTdH*R) = 5.255896
 	In a very crude linear iteration the h value can be updated by
-		delta_h = –delta_p / dpdh
+		delta_h = \96delta_p / dpdh
 	The slope dpdh varies by about a factor two over the range of interest,
 	but we can pick a fixed value on the safe side and accept that the updates
 	are a bit more damped at higher altitudes.
