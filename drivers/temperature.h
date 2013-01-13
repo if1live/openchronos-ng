@@ -2,6 +2,7 @@
     temperature.h: Temperature driver header
 
     Copyright (C) 2012 Matthew Excell <matt@excellclan.com>
+    Copyright (C) 2012 Stanislas Bach <stanislasbach@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,7 +21,11 @@
 #ifndef __TEMPERATURE_H__
 #define __TEMPERATURE_H__
 
-#include <openchronos.h>
+#include <core/openchronos.h>
+
+#define TEMPERATURE_DEGREES_C		0
+#define TEMPERATURE_DEGREES_F		1
+#define TEMPERATURE_DEGREES_BOTH	2
 
 void temperature_init(void);
 void temperature_measurement(void);
