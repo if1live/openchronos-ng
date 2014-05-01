@@ -3,6 +3,10 @@ openchronos-ngr
 
 Ti-Ez430 Firmware
 
+Feature
+-------------
+* Google OTP
+* Day Counter
 
 What's not working
 ------------
