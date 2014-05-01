@@ -3,8 +3,15 @@
 #include <stdbool.h>
 #include "drivers/display.h"
 
+typedef struct {
+	uint16_t year;
+	uint8_t month;
+	uint8_t day;
+} date_t;
 
-void fill_d_day_message(uint8_t *src, uint16_t year, uint8_t month, uint8_t day);
+static date_t g_dday;
+
+void fill_d_day_message(uint8_t *src, date_t *date);
 
 
 static void display_d_day(void)
@@ -13,11 +20,17 @@ static void display_d_day(void)
 
 static void d_day_activate(void)
 {
+	// I don't need D-Day year.
+#ifdef CONFIG_MOD_CLOCK_MONTH_FIRST
+	_printf(0, LCD_SEG_L1_3_2, "%2u", g_dday.month);
+	_printf(0, LCD_SEG_L1_1_0, "%2u", g_dday.day);
+#else
+	_printf(0, LCD_SEG_L1_3_2, "%2u", g_dday.day);
+	_printf(0, LCD_SEG_L1_1_0, "%2u", g_dday.month);
+#endif
+
 	uint8_t line[7] = {0};
-	fill_d_day_message(line,
-					   CONFIG_MOD_D_DAY_YEAR,
-					   CONFIG_MOD_D_DAY_MONTH,
-					   CONFIG_MOD_D_DAY_DAY);
+	fill_d_day_message(line, &g_dday);
 	display_chars(0, LCD_SEG_L2_5_0, line, SEG_ON);
 }
 
@@ -32,6 +45,9 @@ void mod_d_day_init(void)
 	menu_add_entry("D-DAY", NULL, NULL, NULL, NULL, NULL, NULL,
 				   &d_day_activate, &d_day_deactivate);
 
+	g_dday.year = CONFIG_MOD_D_DAY_YEAR;
+	g_dday.month = CONFIG_MOD_D_DAY_MONTH;
+	g_dday.day = CONFIG_MOD_D_DAY_DAY;
 }
 
 bool is_leap_year(uint16_t year)
@@ -104,12 +120,12 @@ int16_t calc_d_day(uint16_t year, uint8_t month, uint8_t day)
 	return today - dday;
 }
 
-void fill_d_day_message(uint8_t *src, uint16_t year, uint8_t month, uint8_t day)
+void fill_d_day_message(uint8_t *src, date_t *date)
 {
 	/*
 	  make src like " D-123"
 	 */
-	int16_t remain = calc_d_day(year, month, day);
+	int16_t remain = calc_d_day(date->year, date->month, date->day);
 	memset(src, 7, sizeof(uint8_t));
 	src[0] = ' ';
 	src[1] = 'D';
