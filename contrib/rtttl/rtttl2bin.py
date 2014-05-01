@@ -1,4 +1,5 @@
-#!/usr/bin/env python3.2
+#!/usr/bin/env python3
+#-*- coding: utf-8 -*-
 #
 # Copyright (C) 2012 Aljaž Srebrnič <a2piratesoft@gmail.com>
 #
@@ -68,9 +69,15 @@ def generate_binary_note(note, whole_note):
         raise Exception("note duration too long")
     tone = notes_translate.index(note[1])
     octave = note[2] - 4
-    return (duration << 6) | (octave << 2) | tone
+    return (int(duration) << 6) | (octave << 2) | tone
     
     
 if __name__ == '__main__':
     import sys
-    print(generate_binary_ringtone(parse_ringtone(sys.argv[1])))
+    if len(sys.argv) != 2:
+        cmd = "welcome: d=16,o=4,b=150: a, c, e"
+        print('Usage: {} command'.format(sys.argv[0]))
+        print('Example: {} "{}"'.format(sys.argv[0], cmd))
+    else:
+        cmd = sys.argv[1]
+    print(generate_binary_ringtone(parse_ringtone(cmd)))

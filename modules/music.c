@@ -34,6 +34,17 @@ static void num_press()
 	buzzer_play(smb);
 }
 
+static void up_press()
+{
+	note welcome[4] = {0x1901, 0x1904, 0x1908, 0x000F};
+	buzzer_play(welcome);
+}
+
+static void down_press()
+{
+	note welcome[4] = {0x1901, 0x1904, 0x1908, 0x000F};
+	buzzer_play(welcome);
+}
 
 static void music_activate()
 {
@@ -47,7 +58,7 @@ static void music_deactivate()
 
 void mod_music_init(void)
 {
-	menu_add_entry("MUSIC", NULL, NULL, &num_press, NULL, NULL, NULL,
+	menu_add_entry("MUSIC", &up_press, &down_press, &num_press, NULL, NULL, NULL,
 						&music_activate,
 						&music_deactivate);
 }
