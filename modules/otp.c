@@ -26,7 +26,7 @@
 #include <drivers/display.h>
 
 /* C is used as variable below */
-#undef C 
+#undef C
 
 /* 7-segment character bit assignments */
 /* Replicated from drivers/display.c (shouldn't this be in display.h ?) */
@@ -42,7 +42,7 @@
 #define SHA1_DIGEST_LENGTH 20
 
 /*in this implementation: MAX = 63*/
-#define HMAC_KEY_LENGTH 10
+#define HMAC_KEY_LENGTH 20
 #define HMAC_DATA_LENGTH 8
 
 static uint8_t  hmac_key[HMAC_KEY_LENGTH];
@@ -50,7 +50,7 @@ static uint32_t sha1_digest[8];
 static uint32_t sha1_count;
 static uint8_t  sha1_data[SHA1_BLOCKSIZE];
 static uint32_t sha1_W[80];
-static uint8_t  hmac_tmp_key[64 + HMAC_DATA_LENGTH];
+static uint8_t  hmac_tmp_key[64 + HMAC_KEY_LENGTH];
 static uint8_t  hmac_sha[SHA1_DIGEST_LENGTH];
 
 /* SHA f()-functions */
@@ -260,9 +260,9 @@ static uint32_t calculate_otp(uint32_t time)
 
 static void clock_event(enum sys_message msg)
 {
-    // Check how long the current code is valid 
+    // Check how long the current code is valid
     uint8_t segment = (rtca_time.sec / 5) % 6;
-        
+
     // Draw indicator in lower-left corner
     display_bits(0, LCD_SEG_L2_4, indicator[2*segment  ], SEG_SET);
     display_bits(0, LCD_SEG_L2_4, indicator[2*segment+1], BLINK_SET);
@@ -280,7 +280,7 @@ static void clock_event(enum sys_message msg)
         // Draw first half on the top line
         uint16_t v = (otp_value / 1000) % 1000;
         _printf(0, LCD_SEG_L1_2_0, "%03u", v);
-        
+
         // Draw second half on the bottom line
         v = (otp_value % 1000);
         _printf(0, LCD_SEG_L2_2_0,"%03u", v);
@@ -291,7 +291,7 @@ static void otp_activated()
 {
     sys_messagebus_register(&clock_event, SYS_MSG_RTC_SECOND);
 
-    // Force generate & display a new OTP 
+    // Force generate & display a new OTP
     last_time = 0;
     clock_event(RTCA_EV_SECOND);
 }
@@ -311,11 +311,10 @@ void mod_otp_init()
         NULL,               /* up         */
         NULL,               /* down       */
         NULL,               /* num        */
-        NULL,               /* long star  */ 
+        NULL,               /* long star  */
         NULL,               /* long num   */
         NULL,               /* up-down    */
         &otp_activated,     /* activate   */
         &otp_deactivated    /* deactivate */
     );
 }
-
