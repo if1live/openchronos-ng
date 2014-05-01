@@ -60,8 +60,28 @@
 #include <drivers/display.h>
 #include <drivers/battery.h>
 
+enum {
+	STATE_LOCK = 0,
+	STATE_OPEN,
+	STATE_COUNT,
+};
+
+static int g_state;
+
 // Entry point of of the Flash Updater in BSL memory
 #define CALL_RFSBL()   ((void (*)())0x1000)()
+
+static void refresh_lock_open_display()
+{
+	display_clear(0, 1);
+	if(g_state == STATE_LOCK) {
+		display_chars(0, LCD_SEG_L1_3_0, "   0", SEG_ON);
+	} else {
+		display_chars(0, LCD_SEG_L1_3_0, "   1", SEG_ON);
+	}
+}
+
+
 
 // *************************************************************************************************
 // @fn          mx_rfbsl
@@ -69,13 +89,21 @@
 // @param       line		LINE1, LINE2
 // @return      none
 // *************************************************************************************************
-static void updown_press()
+static void up_press()
 {
-	// Write RAM to indicate we will be downloading the RAM Updater first
-	display_chars(0, LCD_SEG_L1_3_0, " RAM", SEG_ON);
+	if(g_state == STATE_OPEN) {
+		// Write RAM to indicate we will be downloading the RAM Updater first
+		display_chars(0, LCD_SEG_L1_3_0, " RAM", SEG_ON);
 
-	// Call RFBSL
-	CALL_RFSBL();
+		// Call RFBSL
+		CALL_RFSBL();
+	}
+}
+
+static void down_press()
+{
+	g_state = (g_state + 1) % STATE_COUNT;
+	refresh_lock_open_display();
 }
 
 
@@ -88,20 +116,23 @@ static void updown_press()
 // *************************************************************************************************
 static void rfbsl_activate()
 {
+	g_state = STATE_LOCK;
 	/* update screen */
 	display_chars(0, LCD_SEG_L2_5_0, " RFBSL", SEG_ON);
+	refresh_lock_open_display();
 }
 
 static void rfbsl_deactivate()
 {
 	/* cleanup screen */
+	display_clear(0, 1);
 	display_clear(0, 2);
 }
 
 void mod_rfbsl_init(void)
 {
-	menu_add_entry("RFBSL", NULL, NULL, NULL, NULL, NULL,
-						&updown_press,
+	menu_add_entry("RFBSL", &up_press, &down_press, NULL, NULL, NULL,
+						NULL,
 						&rfbsl_activate,
 						&rfbsl_deactivate);
 }
