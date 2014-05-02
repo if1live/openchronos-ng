@@ -48,11 +48,11 @@ static void display_view()
 
 	date_t today = { rtca_time.year, rtca_time.mon, rtca_time.day };
 	int16_t remain = calc_d_day(&g_dday, &today);
-	remain %= 1000;
 	if(remain < 0) {
-		_printf(0, LCD_SEG_L2_5_0, " D-%3d", remain);
+		remain = -remain;
+		_printf(0, LCD_SEG_L2_5_0, " D-%3u", remain % 1000);
 	} else if(remain > 0) {
-		_printf(0, LCD_SEG_L2_5_0, " D+3d", remain);
+		_printf(0, LCD_SEG_L2_5_0, " D+%3u", remain % 1000);
 	} else {
 		display_chars(0, LCD_SEG_L2_5_0, " D-DAY", SEG_ON);
 	}
