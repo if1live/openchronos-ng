@@ -71,9 +71,9 @@ OBJS := $(patsubst %.c, build/%.o, $(SRCS))
 # Append specific CFLAGS/LDFLAGS
 
 ifneq ($(wildcard config/config.h), )
-	
+
 	DEBUG := $(shell grep "^\#define CONFIG_DEBUG" config/config.h)
-	
+
 	ifeq ($(DEBUG),)
 		TARGET	:= RELEASE
 		CFLAGS	+= $(CFLAGS_REL)
@@ -83,8 +83,8 @@ ifneq ($(wildcard config/config.h), )
 		CFLAGS	+= $(CFLAGS_DBG)
 		LDFLAGS	+= $(LDFLAGS_DBG)
 		MEMPYFLAGS := -d
-	endif	
-	
+	endif
+
 endif
 
 
@@ -124,7 +124,7 @@ endif
 
 
 # *************************************************************************************************
-# Rebuild if CFLAGS changed 
+# Rebuild if CFLAGS changed
 # 	(use the .cflags file to store the last CFLAGS)
 
 config/openchronos.cflags: force
@@ -160,7 +160,7 @@ $(OUTDIR)/openchronos.elf: $(OUTDIR)/core/even_in_range.o $(OBJS)
 	@printf "\n%-${PAD}s" "Building $@ as target $(TARGET)..."
 	@$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ $+ 2>> tmp.log || touch tmp.errors
 	$(CHECK_ERRORS)
-	@rm -f output.map	
+	@rm -f output.map
 
 $(OUTDIR)/openchronos.txt: $(OUTDIR)/openchronos.elf
 	@$(PYTHON) tools/firmware/memory.py -i $< -o $@ $(MEMPYFLAGS)
@@ -201,15 +201,19 @@ clean:
 debug:
 	@echo "Starting mspdebug..."
 	mspdebug rf2500 gdb
-	
+
 run:
 	@echo "Running the firmware using mspdebug..."
 	mspdebug rf2500 run
-	
+
 doc:
 	@rm -Rf doc
 	@mkdir -p doc
 	doxygen Doxyfile
-	
+
 latexdoc: doc
 	@make -f .doc/latex/Makefile pdf
+
+test:
+	clang modules/otp.c $(INCLUDES) -DTESTING
+	./a.out

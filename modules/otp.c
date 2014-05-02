@@ -258,6 +258,19 @@ static uint32_t calculate_otp(uint32_t time)
 	return val;
 }
 
+static uint32_t create_otp_time(rtca_time_t *curr_time, int otp_offset)
+{
+	uint32_t time = simple_mktime(curr_time->year,
+								  curr_time->mon - 1,
+								  curr_time->day,
+								  curr_time->hour,
+								  curr_time->min,
+								  curr_time->sec);
+	time = (time - otp_offset * 3600) / 30;
+	return time;
+}
+
+
 static void clock_event(enum sys_message msg)
 {
     // Check how long the current code is valid
@@ -268,9 +281,7 @@ static void clock_event(enum sys_message msg)
     display_bits(0, LCD_SEG_L2_4, indicator[2*segment+1], BLINK_SET);
 
     // Calculate timestamp
-	uint32_t time = simple_mktime(rtca_time.year, rtca_time.mon - 1, rtca_time.day,
-                                  rtca_time.hour, rtca_time.min    , rtca_time.sec);
-	time = (time - CONFIG_MOD_OTP_OFFSET * 3600) / 30;
+	uint32_t time = create_otp_time(&rtca_time, CONFIG_MOD_OTP_OFFSET);
 
     // Check if new code must be calculated
     if(time != last_time) {
@@ -318,3 +329,70 @@ void mod_otp_init()
         &otp_deactivated    /* deactivate */
     );
 }
+
+#ifdef TESTING
+#include "../greatest/greatest.h"
+
+// fake api
+void sys_messagebus_unregister(void (*callback)(enum sys_message)) {}
+void sys_messagebus_register(void (*callback)(enum sys_message), enum sys_message listens) {}
+void menu_add_entry(char const * name,
+					void (*up_btn_fn)(void),
+					void (*down_btn_fn)(void),
+					void (*num_btn_fn)(void),
+					void (*lstar_btn_fn)(void),
+					void (*lnum_btn_fn)(void),
+					void (*updown_btn_fn)(void),
+					void (*activate_fn)(void),
+					void (*deactivate_fn)(void)) {}
+
+void display_clear(uint8_t scr_nr, uint8_t line) {}
+
+void display_char(uint8_t scr_nr,
+				  enum display_segment segment,
+				  char chr,
+				  enum display_segstate state) {}
+void display_chars(uint8_t scr_nr,
+				   enum display_segment_array segments,
+				   char const * str,
+				   enum display_segstate state) {}
+
+void display_bits(uint8_t scr_nr,
+				  enum display_segment segment,
+				  uint8_t bits,
+				  enum display_segstate state) {}
+
+char *_sprintf(const char *fmt, int16_t n) { return NULL; }
+
+
+TEST test_create_otp_time()
+{
+	rtca_time_t tmp_time;
+	tmp_time.year = 2014;
+	tmp_time.mon = 5;
+	tmp_time.day = 2;
+	tmp_time.hour = 21;
+	tmp_time.min = 59;
+	tmp_time.sec = 18;
+	uint32_t actual = create_otp_time(&tmp_time, 9);
+	uint32_t expected = 0x2c79616;
+	ASSERT_EQ(actual, expected);
+	PASS();
+}
+
+SUITE(the_suite)
+{
+	RUN_TEST(test_create_otp_time);
+}
+
+/* Add definitions that need to be in the test runner's main file. */
+GREATEST_MAIN_DEFS();
+
+int main(int argc, char **argv)
+{
+	GREATEST_MAIN_BEGIN();      /* command-line arguments, initialization. */
+	RUN_SUITE(the_suite);
+	GREATEST_MAIN_END();        /* display results */
+}
+
+#endif

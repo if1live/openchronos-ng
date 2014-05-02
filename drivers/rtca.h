@@ -45,7 +45,7 @@ static char const * const rtca_dow_str[] = {
 #endif
 };
 
-struct {
+typedef struct {
 	uint32_t sys;   /* system time: number of seconds since power on */
 	uint16_t year;  /* cache of RTC year register */
 	uint8_t mon;    /* cache of RTC month register */
@@ -54,7 +54,8 @@ struct {
 	uint8_t hour;   /* cache of RTC hour register */
 	uint8_t min;    /* cache of RTC minutes register */
 	uint8_t sec;    /* cache of RTC seconds register */
-} rtca_time;
+} rtca_time_t;
+rtca_time_t rtca_time;
 
 #define rtca_stop()		(RTCCTL01 |=  RTCHOLD)
 #define rtca_start()		(RTCCTL01 &= ~RTCHOLD)
