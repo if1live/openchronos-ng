@@ -143,14 +143,19 @@ $(OUTDIR)/%.o: %.c
 	@$(CC) $(CFLAGS) $(SPEC_FLAGS) $(INCLUDES) -c $< -o $@ 2>> tmp.log || touch tmp.errors
 	$(CHECK_ERRORS)
 
+CFLAGS_TESTING	= -DTESTING
+
 $(TESTDIR)/core/test_main.o: core/test_main.c
 	@mkdir -p $(dir $@)
-	clang -c $< -o $@ $(INCLUDES) -DTESTING
+	clang -c $< -o $@ $(INCLUDES) $(CFLAGS_TESTING)
 
 $(TESTDIR)/modules/otp.o: modules/otp.c
 	@mkdir -p $(dir $@)
-	clang -c $< -o $@ $(INCLUDES) -DTESTING
+	clang -c $< -o $@ $(INCLUDES) $(CFLAGS_TESTING)
 
+$(TESTDIR)/modules/d_day.o: modules/d_day.c
+	@mkdir -p $(dir $@)
+	clang -c $< -o $@ $(INCLUDES) $(CFLAGS_TESTING)
 
 
 # *************************************************************************************************
@@ -225,7 +230,7 @@ doc:
 latexdoc: doc
 	@make -f .doc/latex/Makefile pdf
 
-test: $(TESTDIR)/core/test_main.o $(TESTDIR)/modules/otp.o
+test: $(TESTDIR)/core/test_main.o $(TESTDIR)/modules/otp.o $(TESTDIR)/modules/d_day.o
 	clang -o $(TESTDIR)/$@ $^
 	./$(TESTDIR)/$@
 

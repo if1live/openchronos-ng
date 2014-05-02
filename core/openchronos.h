@@ -155,6 +155,13 @@ void helpers_loop(
 	uint8_t upper,	/**< Upper the upper bound for the loop interval. */
 	int8_t step		/**< 1 for incrementing value, -1 for a decrement */
 );
+void helpers_loop_16(
+	uint16_t *value,	/**< Value a pointer to the variable to be incremented. */
+	uint16_t lower,	/**< Lower the lower bound for the loop interval. */
+	uint16_t upper,	/**< Upper the upper bound for the loop interval. */
+	int16_t step		/**< 1 for incrementing value, -1 for a decrement */
+);
+
 
 //* ************************************************************************************************
 /// @brief	Registers a node in the message bus.

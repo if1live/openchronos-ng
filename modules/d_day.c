@@ -1,7 +1,9 @@
 #include <core/openchronos.h>
 #include <drivers/rtca.h>
 #include <stdbool.h>
+#include <string.h>
 #include "drivers/display.h"
+
 
 #define EDIT_YY_FIELD LCD_SEG_L1_3_0
 #define EDIT_MM_FIELD LCD_SEG_L2_4_3
@@ -23,8 +25,8 @@ static date_t g_dday;
 static date_t tmp_date;
 static uint8_t g_view_state;
 
-void fill_d_day_message(uint8_t *src, date_t *date);
 uint8_t get_number_of_days(uint8_t month, uint16_t year);
+int16_t calc_d_day(date_t *target, date_t *today);
 
 /******************** display functions *****************/
 static void display_view()
@@ -44,11 +46,18 @@ static void display_view()
 		_printf(0, LCD_SEG_L1_3_0, "%4u", g_dday.year);
 	}
 
-	uint8_t line[7] = {0};
-	fill_d_day_message(line, &g_dday);
-	display_chars(0, LCD_SEG_L2_5_0, line, SEG_ON);
-
+	date_t today = { rtca_time.year, rtca_time.mon, rtca_time.day };
+	int16_t remain = calc_d_day(&g_dday, &today);
+	remain %= 1000;
+	if(remain < 0) {
+		_printf(0, LCD_SEG_L2_5_0, " D-%3d", remain);
+	} else if(remain > 0) {
+		_printf(0, LCD_SEG_L2_5_0, " D+3d", remain);
+	} else {
+		display_chars(0, LCD_SEG_L2_5_0, " D-DAY", SEG_ON);
+	}
 }
+
 static void display_edit()
 {
 	display_clear(0, 1);
@@ -72,7 +81,7 @@ static void edit_yy_dsel(void)
 
 static void edit_yy_set(int8_t step)
 {
-	helpers_loop(&tmp_date.year, 2000, 2020, step);
+	helpers_loop_16(&tmp_date.year, 2000, 2020, step);
 	_printf(0, EDIT_YY_FIELD, "%4u", tmp_date.year);
 }
 
@@ -231,46 +240,84 @@ uint16_t get_nth_day_from_2000(uint16_t year, uint8_t month, uint8_t day)
 	return sum_day;
 }
 
-int16_t calc_d_day(uint16_t year, uint8_t month, uint8_t day)
+int16_t calc_d_day(date_t *target, date_t *today)
 {
-	int16_t today = get_nth_day_from_2000(rtca_time.year, rtca_time.mon, rtca_time.day);
-	int16_t dday = get_nth_day_from_2000(year, month, day);
-	return today - dday;
+	int16_t today_count = get_nth_day_from_2000(today->year, today->month, today->day);
+	int16_t dday_count = get_nth_day_from_2000(target->year, target->month, target->day);
+	return today_count - dday_count;
 }
 
-void fill_d_day_message(uint8_t *src, date_t *date)
+
+#ifdef TESTING
+#include "../greatest/greatest.h"
+
+TEST test_is_leap_year()
 {
-	/*
-	  make src like " D-123"
-	 */
-	int16_t remain = calc_d_day(date->year, date->month, date->day);
-	memset(src, 7, sizeof(uint8_t));
-	src[0] = ' ';
-	src[1] = 'D';
-	if(remain <= 0) {
-		src[2] = '-';
-	} else {
-		// cannot render '.'
-		src[2] = '.';
-	}
-
-	remain = abs(remain);
-	//usable index: 3, 4, 5
-	src[3] = (remain / 100) % 10;
-	src[4] = (remain % 100) / 10;
-	src[5] = (remain % 10);
-
-	uint8_t i = 0;
-	for(i = 3 ; i <= 5 ; i++) {
-		if(src[i] == 0) {
-			src[i] = ' ';
-		} else {
-			src[i] += '0';
-		}
-	}
-	if(remain == 0) {
-		src[3] = 'D';
-		src[4] = 'A';
-		src[5] = 'Y';
-	}
+	ASSERT_EQ(is_leap_year(2012), true);
+	ASSERT_EQ(is_leap_year(2013), false);
+	ASSERT_EQ(is_leap_year(2014), false);
+	ASSERT_EQ(is_leap_year(2015), false);
+	ASSERT_EQ(is_leap_year(2016), true);
+	ASSERT_EQ(is_leap_year(2017), false);
+	PASS();
 }
+
+TEST test_get_number_of_days_in_year()
+{
+	ASSERT_EQ(get_number_of_days_in_year(2012), 366);
+	ASSERT_EQ(get_number_of_days_in_year(2013), 365);
+	PASS();
+}
+
+TEST test_get_number_of_days()
+{
+	ASSERT_EQ(get_number_of_days(2, 2012), 29);
+	ASSERT_EQ(get_number_of_days(2, 2013), 28);
+	PASS();
+}
+
+TEST test_get_nth_day_from_2000()
+{
+	ASSERT_EQ(get_nth_day_from_2000(2000, 1, 1), 1);
+
+	ASSERT_EQ(get_nth_day_from_2000(2000, 1, 31), 31);
+	ASSERT_EQ(get_nth_day_from_2000(2000, 2, 1), 31+1);
+
+	ASSERT_EQ(get_nth_day_from_2000(2001, 1, 1), 366+1);
+	ASSERT_EQ(get_nth_day_from_2000(2002, 1, 1), 366+365+1);
+
+	PASS();
+}
+
+TEST test_calc_d_day()
+{
+	date_t today = {2014, 5, 2};
+	date_t day_7_31 = {2014, 7, 31};
+	date_t day_8_1 = {2014, 8, 1};
+
+	ASSERT_EQ(calc_d_day(&day_7_31, &today), -90);
+	ASSERT_EQ(calc_d_day(&day_8_1, &today), -91);
+
+	ASSERT_EQ(calc_d_day(&today, &today), 0);
+
+	ASSERT_EQ(calc_d_day(&today, &day_7_31), +90);
+
+	PASS();
+}
+
+
+TEST test_foo()
+{
+	PASS();
+}
+
+SUITE(d_day_suite)
+{
+	RUN_TEST(test_is_leap_year);
+	RUN_TEST(test_get_number_of_days_in_year);
+	RUN_TEST(test_get_number_of_days);
+	RUN_TEST(test_get_nth_day_from_2000);
+	RUN_TEST(test_calc_d_day);
+}
+
+#endif
