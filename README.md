@@ -52,6 +52,12 @@ To create the Doxygen documentation from source code:
 
 	make doc
 
+To run test. (support d-day counter, otp)
+
+	git submodule init
+	git submodule update
+	make test
+
 Also:
 
 	make run

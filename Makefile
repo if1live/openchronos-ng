@@ -230,9 +230,8 @@ doc:
 latexdoc: doc
 	@make -f .doc/latex/Makefile pdf
 
-test: $(TESTDIR)/core/test_main.o $(TESTDIR)/modules/otp.o $(TESTDIR)/modules/d_day.o
+compile_test: $(TESTDIR)/core/test_main.o $(TESTDIR)/modules/otp.o $(TESTDIR)/modules/d_day.o
 	clang -o $(TESTDIR)/$@ $^
-	./$(TESTDIR)/$@
 
-run_test: test
-	./$(TESTDIR)/test
+test: compile_test
+	./$(TESTDIR)/compile_test
