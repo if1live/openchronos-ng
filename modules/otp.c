@@ -367,6 +367,8 @@ char *_sprintf(const char *fmt, int16_t n) { return NULL; }
 
 TEST test_create_otp_time()
 {
+	// test data
+	// http://blog.tinisles.com/2011/10/google-authenticator-one-time-password-algorithm-in-javascript/
 	rtca_time_t tmp_time;
 	tmp_time.year = 2014;
 	tmp_time.mon = 5;
@@ -380,9 +382,29 @@ TEST test_create_otp_time()
 	PASS();
 }
 
+TEST test_sha1()
+{
+	// test data
+	// http://caligatio.github.io/jsSHA/
+	uint8_t data[] = "12341234";
+	uint32_t len = sizeof(data) - 1;
+	uint8_t actual[20];
+	sha1(data, 8, actual);
+
+	uint8_t expected[] = "\xc1\x29\xb3\x24\xae\xe6\x62\xb0\x4e\xcc\xf6\x8b\xab\xba\x85\x85\x13\x46\xdf\xf9";
+
+	for(int i = 0 ; i < 20 ; ++i) {
+		ASSERT_EQ(actual[i], expected[i]);
+	}
+	PASS();
+}
+
+
+
 SUITE(the_suite)
 {
 	RUN_TEST(test_create_otp_time);
+	RUN_TEST(test_sha1);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
