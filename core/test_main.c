@@ -6,7 +6,7 @@
 
 #include "../greatest/greatest.h"
 
-extern SUITE(the_suite);
+extern SUITE(otp_suite);
 
 // fake api
 void sys_messagebus_unregister(void (*callback)(enum sys_message)) {}
@@ -46,7 +46,7 @@ GREATEST_MAIN_DEFS();
 int main(int argc, char **argv)
 {
 	GREATEST_MAIN_BEGIN();      /* command-line arguments, initialization. */
-	RUN_SUITE(the_suite);
+	RUN_SUITE(otp_suite);
 	GREATEST_MAIN_END();        /* display results */
 }
 

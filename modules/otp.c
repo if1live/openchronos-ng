@@ -333,39 +333,6 @@ void mod_otp_init()
 #ifdef TESTING
 #include "../greatest/greatest.h"
 
-/*
-// fake api
-void sys_messagebus_unregister(void (*callback)(enum sys_message)) {}
-void sys_messagebus_register(void (*callback)(enum sys_message), enum sys_message listens) {}
-void menu_add_entry(char const * name,
-					void (*up_btn_fn)(void),
-					void (*down_btn_fn)(void),
-					void (*num_btn_fn)(void),
-					void (*lstar_btn_fn)(void),
-					void (*lnum_btn_fn)(void),
-					void (*updown_btn_fn)(void),
-					void (*activate_fn)(void),
-					void (*deactivate_fn)(void)) {}
-
-void display_clear(uint8_t scr_nr, uint8_t line) {}
-
-void display_char(uint8_t scr_nr,
-				  enum display_segment segment,
-				  char chr,
-				  enum display_segstate state) {}
-void display_chars(uint8_t scr_nr,
-				   enum display_segment_array segments,
-				   char const * str,
-				   enum display_segstate state) {}
-
-void display_bits(uint8_t scr_nr,
-				  enum display_segment segment,
-				  uint8_t bits,
-				  enum display_segstate state) {}
-
-char *_sprintf(const char *fmt, int16_t n) { return NULL; }
-*/
-
 TEST test_create_otp_time()
 {
 	// test data
@@ -412,7 +379,7 @@ TEST test_calculate_otp()
 	PASS();
 }
 
-SUITE(the_suite)
+SUITE(otp_suite)
 {
 	RUN_TEST(test_create_otp_time);
 	RUN_TEST(test_sha1);
