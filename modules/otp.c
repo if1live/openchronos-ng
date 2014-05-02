@@ -232,12 +232,12 @@ static uint8_t   indicator[]  = {
     SEG_A,                               SEG_A
 };
 
-static uint32_t calculate_otp(uint32_t time)
+static uint32_t calculate_otp(const char *otp_key, uint32_t time)
 {
 	uint32_t val = 0;
     int i;
 
-	memcpy(hmac_key, key, HMAC_KEY_LENGTH);
+	memcpy(hmac_key, otp_key, HMAC_KEY_LENGTH);
 
 	otp_data[4] = (time >> 24) & 0xff;
 	otp_data[5] = (time >> 16) & 0xff;
@@ -286,7 +286,7 @@ static void clock_event(enum sys_message msg)
     // Check if new code must be calculated
     if(time != last_time) {
         last_time = time;
-        uint32_t otp_value = calculate_otp(time);
+        uint32_t otp_value = calculate_otp(key, time);
 
         // Draw first half on the top line
         uint16_t v = (otp_value / 1000) % 1000;
@@ -399,12 +399,23 @@ TEST test_sha1()
 	PASS();
 }
 
-
+TEST test_calculate_otp()
+{
+	// allow only real lenth key
+	// secret (base32) : sd3rsd3rsd3rsd3rsd3rsd3rsd3rsd3r
+	const char otp_key[] = "\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71";
+	uint32_t time = 0x2c79652;
+	uint32_t actual = calculate_otp(otp_key, time);
+	uint32_t expected = 980554;
+	ASSERT_EQ(actual, expected);
+	PASS();
+}
 
 SUITE(the_suite)
 {
 	RUN_TEST(test_create_otp_time);
 	RUN_TEST(test_sha1);
+	RUN_TEST(test_calculate_otp);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
