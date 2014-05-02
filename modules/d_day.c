@@ -223,8 +223,7 @@ uint16_t get_nth_day_from_2000(uint16_t year, uint8_t month, uint8_t day)
 		uint16_t curr_year = 2000 + i;
 		sum_day += get_number_of_days_in_year(curr_year);
 	}
-	uint8_t past_month = month - 1;
-	for(i = 1 ; i < past_month ; ++i)
+	for(i = 1 ; i < month ; ++i)
 	{
 		sum_day += get_number_of_days(i, year);
 	}
