@@ -25,6 +25,13 @@
 #include <drivers/rtca.h>
 #include <drivers/display.h>
 
+enum {
+	SERVICE_GOOGLE = 0,
+	SERVICE_GITHUB,
+	SERVICE_COUNT
+};
+static int g_service;
+
 /* C is used as variable below */
 #undef C
 
@@ -42,15 +49,15 @@
 #define SHA1_DIGEST_LENGTH 20
 
 /*in this implementation: MAX = 63*/
-#define HMAC_KEY_LENGTH (sizeof(CONFIG_MOD_OTP_KEY) - 1)
+#define MAX_HMAC_KEY_LENGTH 20
 #define HMAC_DATA_LENGTH 8
 
-static uint8_t  hmac_key[HMAC_KEY_LENGTH];
+static uint8_t  hmac_key[MAX_HMAC_KEY_LENGTH];
 static uint32_t sha1_digest[8];
 static uint32_t sha1_count;
 static uint8_t  sha1_data[SHA1_BLOCKSIZE];
 static uint32_t sha1_W[80];
-static uint8_t  hmac_tmp_key[64 + HMAC_KEY_LENGTH];
+static uint8_t  hmac_tmp_key[64 + MAX_HMAC_KEY_LENGTH];
 static uint8_t  hmac_sha[SHA1_DIGEST_LENGTH];
 
 /* SHA f()-functions */
@@ -176,25 +183,25 @@ static void sha1(const uint8_t* data, uint32_t len, uint8_t digest[20])
 }
 
 //data is in hmac_tmp_key + 64
-static uint8_t* hmac_sha1(uint8_t *data)
+static uint8_t* hmac_sha1(uint8_t *data, uint8_t data_length)
 {
 	int i;
 
 	// The key for the inner digest is derived from our key, by padding the key
 	// the full length of 64 bytes, and then XOR'ing each byte with 0x36.
-	for (i = 0; i < HMAC_KEY_LENGTH; ++i) {
+	for (i = 0; i < data_length; ++i) {
 		hmac_tmp_key[i] = hmac_key[i] ^ 0x36;
 	}
-	memset(hmac_tmp_key + HMAC_KEY_LENGTH, 0x36, 64 - HMAC_KEY_LENGTH);
+	memset(hmac_tmp_key + data_length, 0x36, 64 - data_length);
 	memcpy(hmac_tmp_key + 64, data, HMAC_DATA_LENGTH);
 	sha1(hmac_tmp_key, 64 + HMAC_DATA_LENGTH, hmac_sha);
 
 	// The key for the outer digest is derived from our key, by padding the key
 	// the full length of 64 bytes, and then XOR'ing each byte with 0x5C.
-	for (i = 0; i < HMAC_KEY_LENGTH; ++i) {
+	for (i = 0; i < data_length; ++i) {
 		hmac_tmp_key[i] = hmac_key[i] ^ 0x5C;
 	}
-	memset(hmac_tmp_key +  HMAC_KEY_LENGTH, 0x5C, 64 - HMAC_KEY_LENGTH);
+	memset(hmac_tmp_key +  data_length, 0x5C, 64 - data_length);
 	memcpy(hmac_tmp_key + 64, hmac_sha, SHA1_DIGEST_LENGTH);
 	sha1(hmac_tmp_key, 64 + SHA1_DIGEST_LENGTH, hmac_sha);
 
@@ -220,8 +227,12 @@ uint32_t simple_mktime(int year, int month, int day, int hour, int minute, int s
 	return result;
 }
 
-const  char     *key          = CONFIG_MOD_OTP_KEY;
+const char *google_key = CONFIG_MOD_OTP_GOOGLE_KEY;
+const char *github_key = CONFIG_MOD_OTP_GITHUB_KEY;
+
+
 static uint32_t  last_time    = 0;
+static uint8_t   last_service = 0;
 static uint8_t   otp_data[]   = {0,0,0,0,0,0,0,0};
 static uint8_t   indicator[]  = {
     SEG_A+SEG_F+SEG_E+SEG_D+SEG_C+SEG_B, SEG_B,
@@ -232,19 +243,19 @@ static uint8_t   indicator[]  = {
     SEG_A,                               SEG_A
 };
 
-static uint32_t calculate_otp(const char *otp_key, uint32_t time)
+static uint32_t calculate_otp(const char *otp_key, uint8_t otp_key_length, uint32_t time)
 {
 	uint32_t val = 0;
     int i;
 
-	memcpy(hmac_key, otp_key, HMAC_KEY_LENGTH);
+	memcpy(hmac_key, otp_key, otp_key_length);
 
 	otp_data[4] = (time >> 24) & 0xff;
 	otp_data[5] = (time >> 16) & 0xff;
 	otp_data[6] = (time >> 8 ) & 0xff;
 	otp_data[7] = (time      ) & 0xff;
 
-	hmac_sha1(otp_data);
+	hmac_sha1(otp_data, otp_key_length);
 
 	int off = hmac_sha[SHA1_DIGEST_LENGTH - 1] & 0x0f;
 
@@ -270,6 +281,29 @@ static uint32_t create_otp_time(rtca_time_t *curr_time, int otp_offset)
 	return time;
 }
 
+void get_otp_service_info(uint8_t service, const char **key, uint8_t *len)
+{
+	const char *otp_key = NULL;
+	switch(service) {
+	case SERVICE_GOOGLE:
+		otp_key = google_key;
+		break;
+	case SERVICE_GITHUB:
+		otp_key = github_key;
+		break;
+	default:
+		otp_key = google_key;
+		break;
+	}
+	if(otp_key == NULL) {
+		*key = NULL;
+		*len = 0;
+	}
+
+	*key = otp_key;
+	*len = strlen(otp_key);
+}
+
 
 static void clock_event(enum sys_message msg)
 {
@@ -284,9 +318,14 @@ static void clock_event(enum sys_message msg)
 	uint32_t time = create_otp_time(&rtca_time, CONFIG_MOD_OTP_OFFSET);
 
     // Check if new code must be calculated
-    if(time != last_time) {
+    if(time != last_time || g_service != last_service) {
         last_time = time;
-        uint32_t otp_value = calculate_otp(key, time);
+		last_service = g_service;
+
+		const char *key = NULL;
+		uint8_t key_length = 0;
+		get_otp_service_info(g_service, &key, &key_length);
+        uint32_t otp_value = calculate_otp(key, key_length, time);
 
         // Draw first half on the top line
         uint16_t v = (otp_value / 1000) % 1000;
@@ -298,12 +337,24 @@ static void clock_event(enum sys_message msg)
     }
 }
 
+static void up_press()
+{
+	g_service = (g_service + 1) % SERVICE_COUNT;
+	// how to show service?
+}
+
+static void down_press()
+{
+	g_service = (g_service + SERVICE_COUNT - 1) % SERVICE_COUNT;
+}
+
 static void otp_activated()
 {
     sys_messagebus_register(&clock_event, SYS_MSG_RTC_SECOND);
 
     // Force generate & display a new OTP
     last_time = 0;
+	g_service = SERVICE_GOOGLE;
     clock_event(RTCA_EV_SECOND);
 }
 
@@ -319,8 +370,8 @@ static void otp_deactivated()
 void mod_otp_init()
 {
     menu_add_entry("  OTP",
-        NULL,               /* up         */
-        NULL,               /* down       */
+        &up_press,          /* up         */
+        &down_press,        /* down       */
         NULL,               /* num        */
         NULL,               /* long star  */
         NULL,               /* long num   */
@@ -360,6 +411,7 @@ TEST test_sha1()
 	sha1(data, 8, actual);
 
 	uint8_t expected[] = "\xc1\x29\xb3\x24\xae\xe6\x62\xb0\x4e\xcc\xf6\x8b\xab\xba\x85\x85\x13\x46\xdf\xf9";
+	ASSERT_EQ(sizeof(expected) - 1, 20);
 
 	for(int i = 0 ; i < 20 ; ++i) {
 		ASSERT_EQ(actual[i], expected[i]);
@@ -367,23 +419,62 @@ TEST test_sha1()
 	PASS();
 }
 
-TEST test_calculate_otp()
+TEST test_calculate_otp_google()
 {
-	// allow only real lenth key
+	// google otp length=20
 	// secret (base32) : sd3rsd3rsd3rsd3rsd3rsd3rsd3rsd3r
 	const char otp_key[] = "\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71\x90\xf7\x19\x0f\x71";
+	int key_length = sizeof(otp_key) - 1;
+	ASSERT_EQ(key_length, 20);
 	uint32_t time = 0x2c79652;
-	uint32_t actual = calculate_otp(otp_key, time);
+	uint32_t actual = calculate_otp(otp_key, key_length, time);
 	uint32_t expected = 980554;
 	ASSERT_EQ(actual, expected);
 	PASS();
 }
 
+TEST test_calculate_otp_github()
+{
+	// github otp length=10
+	// secret (base32) : mjmjmjmjmjmjmjmj
+	const char otp_key[] = "\x62\x58\x96\x25\x89\x62\x58\x96\x25\x89";
+	int key_length = sizeof(otp_key) - 1;
+	ASSERT_EQ(key_length, 10);
+	uint32_t time = 0x2c7973a;
+	uint32_t actual = calculate_otp(otp_key, key_length, time);
+	uint32_t expected = 265523;
+	ASSERT_EQ(actual, expected);
+	PASS();
+}
+
+TEST test_get_otp_service_info()
+{
+	const char *key = NULL;
+	uint8_t len = 0;
+
+	google_key = "google-key";
+	github_key = "github";
+	get_otp_service_info(SERVICE_GOOGLE, &key, &len);
+	ASSERT_EQ(len, 10);
+	get_otp_service_info(SERVICE_GITHUB, &key, &len);
+	ASSERT_EQ(len, 6);
+
+	// empty key
+	google_key = "";
+	get_otp_service_info(SERVICE_GOOGLE, &key, &len);
+	ASSERT_EQ(len, 0);
+
+	PASS();
+}
+
+
 SUITE(otp_suite)
 {
 	RUN_TEST(test_create_otp_time);
 	RUN_TEST(test_sha1);
-	RUN_TEST(test_calculate_otp);
+	RUN_TEST(test_calculate_otp_google);
+	RUN_TEST(test_calculate_otp_github);
+	RUN_TEST(test_get_otp_service_info);
 }
 
 
