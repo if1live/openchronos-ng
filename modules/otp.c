@@ -42,7 +42,7 @@
 #define SHA1_DIGEST_LENGTH 20
 
 /*in this implementation: MAX = 63*/
-#define HMAC_KEY_LENGTH 20
+#define HMAC_KEY_LENGTH (sizeof(CONFIG_MOD_OTP_KEY) - 1)
 #define HMAC_DATA_LENGTH 8
 
 static uint8_t  hmac_key[HMAC_KEY_LENGTH];
