@@ -333,6 +333,7 @@ void mod_otp_init()
 #ifdef TESTING
 #include "../greatest/greatest.h"
 
+/*
 // fake api
 void sys_messagebus_unregister(void (*callback)(enum sys_message)) {}
 void sys_messagebus_register(void (*callback)(enum sys_message), enum sys_message listens) {}
@@ -363,7 +364,7 @@ void display_bits(uint8_t scr_nr,
 				  enum display_segstate state) {}
 
 char *_sprintf(const char *fmt, int16_t n) { return NULL; }
-
+*/
 
 TEST test_create_otp_time()
 {
@@ -418,14 +419,5 @@ SUITE(the_suite)
 	RUN_TEST(test_calculate_otp);
 }
 
-/* Add definitions that need to be in the test runner's main file. */
-GREATEST_MAIN_DEFS();
-
-int main(int argc, char **argv)
-{
-	GREATEST_MAIN_BEGIN();      /* command-line arguments, initialization. */
-	RUN_SUITE(the_suite);
-	GREATEST_MAIN_END();        /* display results */
-}
 
 #endif

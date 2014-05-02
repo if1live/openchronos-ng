@@ -8,6 +8,7 @@ include Common.mk
 # Variables
 
 OUTDIR = build
+TESTDIR = test
 SUBDIRS = config core drivers modules
 
 PYTHON := $(shell which python2 || which python)
@@ -142,6 +143,15 @@ $(OUTDIR)/%.o: %.c
 	@$(CC) $(CFLAGS) $(SPEC_FLAGS) $(INCLUDES) -c $< -o $@ 2>> tmp.log || touch tmp.errors
 	$(CHECK_ERRORS)
 
+$(TESTDIR)/core/test_main.o: core/test_main.c
+	@mkdir -p $(dir $@)
+	clang -c $< -o $@ $(INCLUDES) -DTESTING
+
+$(TESTDIR)/modules/otp.o: modules/otp.c
+	@mkdir -p $(dir $@)
+	clang -c $< -o $@ $(INCLUDES) -DTESTING
+
+
 
 # *************************************************************************************************
 # Rebuild all every time because system time changed
@@ -196,6 +206,7 @@ clear: clean
 
 clean:
 	@rm -Rf ./$(OUTDIR)/
+	@rm -Rf ./$(TESTDIR)/
 	@rm -f Dependencies.mk Build.log
 
 debug:
@@ -214,6 +225,9 @@ doc:
 latexdoc: doc
 	@make -f .doc/latex/Makefile pdf
 
-test:
-	clang modules/otp.c $(INCLUDES) -DTESTING
-	./a.out
+test: $(TESTDIR)/core/test_main.o $(TESTDIR)/modules/otp.o
+	clang -o $(TESTDIR)/$@ $^
+	./$(TESTDIR)/$@
+
+run_test: test
+	./$(TESTDIR)/test
