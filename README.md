@@ -5,7 +5,12 @@ Ti-Ez430 Firmware
 
 Feature
 -------------
-* Google OTP
+* OTP(Time-Based One-Time Password Algorithm, RFC-6238)
+	* Google OTP
+	* GitHub OTP
+	* Evernote OTP
+	* Dropbox OTP
+	* add etc OTP(you can add battle.net OTP)
 * Day Counter
 
 What's not working
