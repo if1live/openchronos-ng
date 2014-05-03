@@ -41,7 +41,15 @@ enum {
 	SERVICE_COUNT
 };
 
-static int g_service;
+enum {
+	DISPLAY_OTP,
+	DISPLAY_SERVICE,
+	DISPLAY_COUNT,
+};
+
+static uint8_t g_service;
+static uint8_t g_display_state;
+static uint8_t service_display_remain;
 
 const char google_key[] = CONFIG_MOD_OTP_GOOGLE_KEY;
 const char github_key[] = CONFIG_MOD_OTP_GITHUB_KEY;
@@ -372,6 +380,21 @@ void display_service(uint8_t service)
 
 static void clock_event(enum sys_message msg)
 {
+	if(g_display_state == DISPLAY_SERVICE) {
+		service_display_remain -= 1;
+		if(service_display_remain == 0) {
+			return;
+		}
+
+		// force return otp display
+		display_clear(0, 1);
+		display_clear(0, 2);
+
+		g_display_state = DISPLAY_OTP;
+		last_time = 0;
+	}
+
+
     if(g_service != last_service) {
 		// clear OTP service name
 		display_clear(0, 1);
@@ -410,14 +433,33 @@ static void clock_event(enum sys_message msg)
 
 static void up_pressed()
 {
+	g_display_state = DISPLAY_OTP;
 	g_service = (g_service + 1) % SERVICE_COUNT;
 	display_service(g_service);
 }
 
 static void down_pressed()
 {
+	g_display_state = DISPLAY_OTP;
 	g_service = (g_service + SERVICE_COUNT - 1) % SERVICE_COUNT;
 	display_service(g_service);
+}
+
+static void num_pressed()
+{
+    display_clear(0, 1);
+    display_clear(0, 2);
+
+	g_display_state = (g_display_state + 1) % DISPLAY_COUNT;
+	if(g_display_state == DISPLAY_SERVICE) {
+		display_service(g_service);
+		service_display_remain = 5;
+
+	} else {
+		last_time = 0;
+		// Force generate & display a new OTP
+		clock_event(RTCA_EV_SECOND);
+	}
 }
 
 static void otp_activated()
@@ -446,7 +488,7 @@ void mod_otp_init()
     menu_add_entry("  OTP",
 				   &up_pressed,          /* up         */
 				   &down_pressed,        /* down       */
-				   NULL,       /* num        */
+				   &num_pressed,       /* num        */
 				   NULL,               /* long star  */
 				   NULL,               /* long num   */
 				   NULL,               /* up-down    */
