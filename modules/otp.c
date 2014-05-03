@@ -26,11 +26,27 @@
 #include <drivers/display.h>
 
 enum {
-	SERVICE_GOOGLE = 0,
+#ifdef CONFIG_MOD_OTP_GOOGLE_USE
+	SERVICE_GOOGLE,
+#endif
+#ifdef CONFIG_MOD_OTP_GITHUB_USE
 	SERVICE_GITHUB,
+#endif
+#ifdef CONFIG_MOD_OTP_EVERNOTE_USE
+	SERVICE_EVERNOTE,
+#endif
+#ifdef CONFIG_MOD_OTP_DROPBOX_USE
+	SERVICE_DROPBOX,
+#endif
 	SERVICE_COUNT
 };
+
 static int g_service;
+
+const char *google_key = CONFIG_MOD_OTP_GOOGLE_KEY;
+const char *github_key = CONFIG_MOD_OTP_GITHUB_KEY;
+const char *evernote_key = CONFIG_MOD_OTP_EVERNOTE_KEY;
+const char *dropbox_key = CONFIG_MOD_OTP_DROPBOX_KEY;
 
 /* C is used as variable below */
 #undef C
@@ -227,9 +243,6 @@ uint32_t simple_mktime(int year, int month, int day, int hour, int minute, int s
 	return result;
 }
 
-const char *google_key = CONFIG_MOD_OTP_GOOGLE_KEY;
-const char *github_key = CONFIG_MOD_OTP_GITHUB_KEY;
-
 
 static uint32_t  last_time    = 0;
 static uint8_t   last_service = 0;
@@ -285,14 +298,28 @@ void get_otp_service_info(uint8_t service, const char **key, uint8_t *len)
 {
 	const char *otp_key = NULL;
 	switch(service) {
+#ifdef CONFIG_MOD_OTP_GOOGLE_USE
 	case SERVICE_GOOGLE:
 		otp_key = google_key;
 		break;
+#endif
+#ifdef CONFIG_MOD_OTP_GITHUB_USE
 	case SERVICE_GITHUB:
 		otp_key = github_key;
 		break;
+#endif
+#ifdef CONFIG_MOD_OTP_EVERNOTE_USE
+	case SERVICE_EVERNOTE:
+		otp_key = evernote_key;
+		break;
+#endif
+#ifdef CONFIG_MOD_OTP_DROPBOX_USE
+	case SERVICE_DROPBOX:
+		otp_key = dropbox_key;
+		break;
+#endif
 	default:
-		otp_key = google_key;
+		otp_key = NULL;
 		break;
 	}
 	if(otp_key == NULL) {
@@ -304,9 +331,55 @@ void get_otp_service_info(uint8_t service, const char **key, uint8_t *len)
 	*len = strlen(otp_key);
 }
 
+void display_service(uint8_t service)
+{
+    display_clear(0, 1);
+    display_clear(0, 2);
+
+	const char *line_1 = "    ";
+	const char *line_2 = "      ";
+	switch(service) {
+#ifdef CONFIG_MOD_OTP_GOOGLE_USE
+	case SERVICE_GOOGLE:
+		line_1 = " GOO";
+		line_2 = "   GLE";
+		break;
+#endif
+#ifdef CONFIG_MOD_OTP_GITHUB_USE
+	case SERVICE_GITHUB:
+		line_1 = " GIT";
+		line_2 = "   HUB";
+		break;
+#endif
+#ifdef CONFIG_MOD_OTP_EVERNOTE_USE
+	case SERVICE_EVERNOTE:
+		line_1 = "EVER";
+		line_2 = "  NOTE";
+		break;
+#endif
+#ifdef CONFIG_MOD_OTP_DROPBOX_USE
+	case SERVICE_DROPBOX:
+		line_1 = "DROP";
+		line_2 = "  BOX";
+		break;
+#endif
+	default:
+		break;
+	}
+	display_chars(0, LCD_SEG_L1_3_0, line_1, SEG_ON);
+	display_chars(0, LCD_SEG_L2_5_0, line_2, SEG_ON);
+}
+
+
 
 static void clock_event(enum sys_message msg)
 {
+    if(g_service != last_service) {
+		// clear OTP service name
+		display_clear(0, 1);
+		display_clear(0, 2);
+	}
+
     // Check how long the current code is valid
     uint8_t segment = (rtca_time.sec / 5) % 6;
 
@@ -337,24 +410,27 @@ static void clock_event(enum sys_message msg)
     }
 }
 
-static void up_press()
+static void up_pressed()
 {
 	g_service = (g_service + 1) % SERVICE_COUNT;
-	// how to show service?
+	display_service(g_service);
 }
 
-static void down_press()
+static void down_pressed()
 {
 	g_service = (g_service + SERVICE_COUNT - 1) % SERVICE_COUNT;
+	display_service(g_service);
 }
 
 static void otp_activated()
 {
     sys_messagebus_register(&clock_event, SYS_MSG_RTC_SECOND);
 
-    // Force generate & display a new OTP
     last_time = 0;
-	g_service = SERVICE_GOOGLE;
+	g_service = 0;
+	display_service(g_service);
+
+    // Force generate & display a new OTP
     clock_event(RTCA_EV_SECOND);
 }
 
@@ -370,15 +446,15 @@ static void otp_deactivated()
 void mod_otp_init()
 {
     menu_add_entry("  OTP",
-        &up_press,          /* up         */
-        &down_press,        /* down       */
-        NULL,               /* num        */
-        NULL,               /* long star  */
-        NULL,               /* long num   */
-        NULL,               /* up-down    */
-        &otp_activated,     /* activate   */
-        &otp_deactivated    /* deactivate */
-    );
+				   &up_pressed,          /* up         */
+				   &down_pressed,        /* down       */
+				   NULL,       /* num        */
+				   NULL,               /* long star  */
+				   NULL,               /* long num   */
+				   NULL,               /* up-down    */
+				   &otp_activated,     /* activate   */
+				   &otp_deactivated    /* deactivate */
+		);
 }
 
 #ifdef TESTING
