@@ -358,7 +358,7 @@ void display_service(uint8_t service)
 #ifdef CONFIG_MOD_OTP_DROPBOX_USE
 	case SERVICE_DROPBOX:
 		line_1 = "DROP";
-		line_2 = "  BOX";
+		line_2 = "   BOX";
 		break;
 #endif
 	default:
