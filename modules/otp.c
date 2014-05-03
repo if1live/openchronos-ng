@@ -43,10 +43,10 @@ enum {
 
 static int g_service;
 
-const char *google_key = CONFIG_MOD_OTP_GOOGLE_KEY;
-const char *github_key = CONFIG_MOD_OTP_GITHUB_KEY;
-const char *evernote_key = CONFIG_MOD_OTP_EVERNOTE_KEY;
-const char *dropbox_key = CONFIG_MOD_OTP_DROPBOX_KEY;
+const char google_key[] = CONFIG_MOD_OTP_GOOGLE_KEY;
+const char github_key[] = CONFIG_MOD_OTP_GITHUB_KEY;
+const char evernote_key[] = CONFIG_MOD_OTP_EVERNOTE_KEY;
+const char dropbox_key[] = CONFIG_MOD_OTP_DROPBOX_KEY;
 
 /* C is used as variable below */
 #undef C
@@ -261,6 +261,7 @@ static uint32_t calculate_otp(const char *otp_key, uint8_t otp_key_length, uint3
 	uint32_t val = 0;
     int i;
 
+	memset(hmac_key, 0, MAX_HMAC_KEY_LENGTH);
 	memcpy(hmac_key, otp_key, otp_key_length);
 
 	otp_data[4] = (time >> 24) & 0xff;
@@ -296,39 +297,36 @@ static uint32_t create_otp_time(rtca_time_t *curr_time, int otp_offset)
 
 void get_otp_service_info(uint8_t service, const char **key, uint8_t *len)
 {
-	const char *otp_key = NULL;
 	switch(service) {
 #ifdef CONFIG_MOD_OTP_GOOGLE_USE
 	case SERVICE_GOOGLE:
-		otp_key = google_key;
+		*key = google_key;
+		*len = sizeof(google_key) - 1;
 		break;
 #endif
 #ifdef CONFIG_MOD_OTP_GITHUB_USE
 	case SERVICE_GITHUB:
-		otp_key = github_key;
+		*key = github_key;
+		*len = sizeof(github_key) - 1;
 		break;
 #endif
 #ifdef CONFIG_MOD_OTP_EVERNOTE_USE
 	case SERVICE_EVERNOTE:
-		otp_key = evernote_key;
+		*key = evernote_key;
+		*len = sizeof(evernote_key) - 1;
 		break;
 #endif
 #ifdef CONFIG_MOD_OTP_DROPBOX_USE
 	case SERVICE_DROPBOX:
-		otp_key = dropbox_key;
+		*key = dropbox_key;
+		*len = sizeof(dropbox_key) - 1;
 		break;
 #endif
 	default:
-		otp_key = NULL;
-		break;
-	}
-	if(otp_key == NULL) {
 		*key = NULL;
 		*len = 0;
+		break;
 	}
-
-	*key = otp_key;
-	*len = strlen(otp_key);
 }
 
 void display_service(uint8_t service)
@@ -523,22 +521,41 @@ TEST test_calculate_otp_github()
 	PASS();
 }
 
+TEST test_calculate_otp_dropbox()
+{
+	// dropbox otp length = 16
+	// secret (base32) : outk outk outk outk outk outk ou
+	const char otp_key[] = "\x75\x26\xa7\x52\x6a\x75\x26\xa7\x52\x6a\x75\x26\xa7\x52\x6a\x75";
+	int key_length = sizeof(otp_key) - 1;
+	ASSERT_EQ(key_length, 16);
+	uint32_t time = 0x2c79c8b;
+	uint32_t actual = calculate_otp(otp_key, key_length, time);
+	uint32_t expected = 322783;
+	ASSERT_EQ(actual, expected);
+	PASS();
+}
+
 TEST test_get_otp_service_info()
 {
 	const char *key = NULL;
 	uint8_t len = 0;
 
-	google_key = "google-key";
-	github_key = "github";
+#ifdef CONFIG_MOD_OTP_GOOGLE_USE
 	get_otp_service_info(SERVICE_GOOGLE, &key, &len);
-	ASSERT_EQ(len, 10);
+	ASSERT_EQ(len, 20);
+#endif
+#ifdef CONFIG_MOD_OTP_GITHUB_USE
 	get_otp_service_info(SERVICE_GITHUB, &key, &len);
-	ASSERT_EQ(len, 6);
-
-	// empty key
-	google_key = "";
-	get_otp_service_info(SERVICE_GOOGLE, &key, &len);
-	ASSERT_EQ(len, 0);
+	ASSERT_EQ(len, 10);
+#endif
+#ifdef CONFIG_MOD_OTP_DROPBOX_USE
+	get_otp_service_info(SERVICE_DROPBOX, &key, &len);
+	ASSERT_EQ(len, 16);
+#endif
+#ifdef CONFIG_MOD_OTP_EVERNOTE_USE
+	get_otp_service_info(SERVICE_EVERNOTE, &key, &len);
+	ASSERT_EQ(len, 10);
+#endif
 
 	PASS();
 }
@@ -550,6 +567,7 @@ SUITE(otp_suite)
 	RUN_TEST(test_sha1);
 	RUN_TEST(test_calculate_otp_google);
 	RUN_TEST(test_calculate_otp_github);
+	RUN_TEST(test_calculate_otp_dropbox);
 	RUN_TEST(test_get_otp_service_info);
 }
 
